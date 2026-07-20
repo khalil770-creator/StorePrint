@@ -18,7 +18,10 @@ exports.list = async (req, res) => {
     const { rows } = await query(
       `SELECT u.id, u.email, u.name, u.phone, u.avatar_url, u.status,
               u.last_active_at, u.created_at, r.name as role_name,
-              ARRAY(SELECT store_id FROM user_stores WHERE user_id = u.id) as store_ids
+              ARRAY(SELECT store_id FROM user_stores WHERE user_id = u.id) as store_ids,
+              (SELECT s.name FROM stores s
+               JOIN user_stores us ON us.store_id = s.id
+               WHERE us.user_id = u.id LIMIT 1) as store_name
        FROM users u LEFT JOIN roles r ON r.id = u.role_id
        ${where}
        ORDER BY u.created_at DESC
@@ -37,7 +40,13 @@ exports.get = async (req, res) => {
   try {
     const { rows } = await query(
       `SELECT u.*, r.name as role_name, r.permissions,
-              ARRAY(SELECT store_id FROM user_stores WHERE user_id = u.id) as store_ids
+              ARRAY(SELECT store_id FROM user_stores WHERE user_id = u.id) as store_ids,
+              (SELECT s.name FROM stores s
+               JOIN user_stores us ON us.store_id = s.id
+               WHERE us.user_id = u.id LIMIT 1) as store_name,
+              (SELECT s.id FROM stores s
+               JOIN user_stores us ON us.store_id = s.id
+               WHERE us.user_id = u.id LIMIT 1) as store_id
        FROM users u LEFT JOIN roles r ON r.id = u.role_id
        WHERE u.id = $1 AND u.brand_id = $2`,
       [req.params.id, req.user.brand_id]
@@ -53,8 +62,8 @@ exports.get = async (req, res) => {
 
 exports.invite = async (req, res) => {
   try {
-    const { email, name, phone, role_id, store_ids = [] } = req.body;
-    const tempPassword = Math.random().toString(36).slice(-10);
+    const { email, name, phone, role_id, store_ids = [], password } = req.body;
+    const tempPassword = password || Math.random().toString(36).slice(-10);
     const hash = await bcrypt.hash(tempPassword, 12);
 
     const { rows } = await query(
@@ -75,7 +84,7 @@ exports.invite = async (req, res) => {
     );
 
     // TODO: send invite email via Postal
-    res.status(201).json({ id: userId, message: 'User invited successfully' });
+    res.status(201).json({ id: userId, message: 'User created successfully', temp_password: password ? undefined : tempPassword });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Email already exists' });
     console.error(err);
@@ -85,13 +94,29 @@ exports.invite = async (req, res) => {
 
 exports.update = async (req, res) => {
   try {
-    const { name, phone, avatar_url } = req.body;
+    const { name, phone, avatar_url, role_id, status, store_id } = req.body;
     await query(
-      `UPDATE users SET name=$1, phone=$2, avatar_url=$3, updated_at=NOW() WHERE id=$4 AND brand_id=$5`,
-      [name, phone, avatar_url, req.params.id, req.user.brand_id]
+      `UPDATE users SET name=$1, phone=$2, avatar_url=$3, role_id=$4, status=$5, updated_at=NOW()
+       WHERE id=$6 AND brand_id=$7`,
+      [name, phone, avatar_url, role_id || null, status || 'active',
+       req.params.id, req.user.brand_id]
     );
+    // Always sync store assignment: clear existing then insert new if provided
+    // Only delete stores for users belonging to this brand
+    await query(
+      `DELETE FROM user_stores WHERE user_id=$1
+       AND user_id IN (SELECT id FROM users WHERE brand_id=$2)`,
+      [req.params.id, req.user.brand_id]
+    );
+    if (store_id) {
+      await query(
+        `INSERT INTO user_stores(user_id, store_id) VALUES($1,$2) ON CONFLICT DO NOTHING`,
+        [req.params.id, store_id]
+      );
+    }
     res.json({ message: 'User updated' });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Failed to update user' });
   }
 };
@@ -120,12 +145,15 @@ exports.activate = async (req, res) => {
 
 exports.resetPassword = async (req, res) => {
   try {
-    const newPassword = Math.random().toString(36).slice(-10);
-    const hash = await bcrypt.hash(newPassword, 12);
+    const { new_password } = req.body;
+    const password = new_password || Math.random().toString(36).slice(-10);
+    const hash = await bcrypt.hash(password, 12);
     await query(`UPDATE users SET password_hash=$1, updated_at=NOW() WHERE id=$2 AND brand_id=$3`,
       [hash, req.params.id, req.user.brand_id]);
-    // TODO: email the new password via Postal
-    res.json({ message: 'Password reset. New credentials sent to user.' });
+    res.json({
+      message: 'Password reset successfully.',
+      new_password: new_password ? undefined : password,  // only return if auto-generated
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to reset password' });
   }
@@ -133,6 +161,12 @@ exports.resetPassword = async (req, res) => {
 
 exports.forceLogout = async (req, res) => {
   try {
+    // Verify user belongs to this brand before terminating sessions
+    const { rows: userCheck } = await query(
+      `SELECT id FROM users WHERE id=$1 AND brand_id=$2`,
+      [req.params.id, req.user.brand_id]
+    );
+    if (!userCheck.length) return res.status(404).json({ error: 'User not found' });
     await query(`UPDATE user_sessions SET revoked_at=NOW() WHERE user_id=$1 AND revoked_at IS NULL`,
       [req.params.id]);
     // Blacklist all tokens in Redis
@@ -146,8 +180,11 @@ exports.forceLogout = async (req, res) => {
 exports.loginHistory = async (req, res) => {
   try {
     const { rows } = await query(
-      `SELECT * FROM login_history WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50`,
-      [req.params.id]
+      `SELECT lh.* FROM login_history lh
+       JOIN users u ON u.id = lh.user_id
+       WHERE lh.user_id=$1 AND u.brand_id=$2
+       ORDER BY lh.created_at DESC LIMIT 50`,
+      [req.params.id, req.user.brand_id]
     );
     res.json(rows);
   } catch (err) {
@@ -158,6 +195,21 @@ exports.loginHistory = async (req, res) => {
 exports.assignStores = async (req, res) => {
   try {
     const { store_ids = [] } = req.body;
+    // Verify the target user belongs to this brand
+    const { rows: userCheck } = await query(
+      `SELECT id FROM users WHERE id=$1 AND brand_id=$2`,
+      [req.params.id, req.user.brand_id]
+    );
+    if (!userCheck.length) return res.status(404).json({ error: 'User not found' });
+    // Verify all store_ids belong to this brand
+    if (store_ids.length) {
+      const { rows: storeCheck } = await query(
+        `SELECT id FROM stores WHERE id = ANY($1::uuid[]) AND brand_id=$2`,
+        [store_ids, req.user.brand_id]
+      );
+      if (storeCheck.length !== store_ids.length)
+        return res.status(400).json({ error: 'One or more stores not found' });
+    }
     await query(`DELETE FROM user_stores WHERE user_id=$1`, [req.params.id]);
     for (const sid of store_ids) {
       await query(`INSERT INTO user_stores(user_id,store_id) VALUES($1,$2)`, [req.params.id, sid]);

@@ -33,11 +33,21 @@ app.use('/api/stores',         require('./modules/admin/stores/stores.routes'));
 app.use('/api/auditing',       require('./modules/auditing/auditing.routes'));
 app.use('/api/field',          require('./modules/field-presence/field.routes'));
 
-// Phase 2+ routes (stubbed, to be implemented)
-// app.use('/api/brand-hub',   require('./modules/brand-hub/brand.routes'));
-// app.use('/api/vm',          require('./modules/vm/vm.routes'));
-// app.use('/api/signage',     require('./modules/signage/signage.routes'));
-// app.use('/api/campaigns',   require('./modules/campaigns/campaign.routes'));
+// Phase 2 routes
+app.use('/api/campaigns',      require('./modules/campaigns/campaigns.routes'));
+app.use('/api/vm',             require('./modules/vm/vm.routes'));
+app.use('/api/signage',        require('./modules/signage/signage.routes'));
+
+// Phase 3 routes
+app.use('/api/training',       require('./modules/training/training.routes'));
+app.use('/api/environment',    require('./modules/environment/environment.routes'));
+app.use('/api/cx',             require('./modules/cx/cx.routes'));
+
+// Brand Hub
+app.use('/api/brand-hub',      require('./modules/brand-hub/brand-hub.routes'));
+
+// Phase 4 routes
+app.use('/api/analytics',      require('./modules/analytics/analytics.routes'));
 
 // ── Health check ───────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok', version: '1.0.0' }));

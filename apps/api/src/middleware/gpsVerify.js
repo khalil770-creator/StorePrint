@@ -24,7 +24,7 @@ const haversineDistance = (lat1, lng1, lat2, lng2) => {
  */
 const gpsVerify = (storeIdField = 'store_id') => async (req, res, next) => {
   const { gps } = req.body;
-  const storeId = req.body[storeIdField] || req.params.storeId;
+  const storeId = (req.body[storeIdField] || req.params.storeId || '').trim();
 
   if (!gps || gps.lat === undefined || gps.lng === undefined) {
     return res.status(400).json({

@@ -1,5 +1,39 @@
 const { query } = require('../../config/db');
 
+exports.myStore = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT s.* FROM stores s
+       JOIN user_stores us ON us.store_id = s.id
+       WHERE us.user_id = $1
+       LIMIT 1`,
+      [req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No store assigned to your account.' });
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to get assigned store' }); }
+};
+
+exports.myStoreStaff = async (req, res) => {
+  try {
+    const { rows: storeRows } = await query(
+      `SELECT s.id FROM stores s JOIN user_stores us ON us.store_id = s.id WHERE us.user_id = $1 LIMIT 1`,
+      [req.user.id]
+    );
+    if (!storeRows.length) return res.json([]);
+    const { rows } = await query(
+      `SELECT u.id, u.name, u.email, r.name as role_name
+       FROM users u
+       JOIN user_stores us ON us.user_id = u.id
+       LEFT JOIN roles r ON r.id = u.role_id
+       WHERE us.store_id = $1 AND u.status = 'active'
+       ORDER BY u.name`,
+      [storeRows[0].id]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to get store staff' }); }
+};
+
 exports.clockIn = async (req, res) => {
   try {
     const { store_id, shift_id } = req.body;
@@ -15,7 +49,13 @@ exports.clockIn = async (req, res) => {
     // Check if late vs scheduled shift
     let isLate = false, lateMinutes = 0;
     if (shift_id) {
-      const { rows: shift } = await query(`SELECT date, start_time FROM shifts WHERE id=$1`, [shift_id]);
+      const { rows: shift } = await query(
+        `SELECT sh.date, sh.start_time FROM shifts sh
+         JOIN roster_schedules rs ON rs.id = sh.roster_id
+         JOIN stores st ON st.id = rs.store_id
+         WHERE sh.id=$1 AND st.brand_id=$2`,
+        [shift_id, req.user.brand_id]
+      );
       if (shift.length) {
         const scheduledStart = new Date(`${shift[0].date}T${shift[0].start_time}`);
         const now = new Date();
@@ -85,13 +125,14 @@ exports.myAttendance = async (req, res) => {
 exports.storeAttendance = async (req, res) => {
   try {
     const { date } = req.query;
-    const params = [req.params.storeId];
-    let where = 'WHERE a.store_id=$1';
+    const params = [req.params.storeId, req.user.brand_id];
+    let where = 'WHERE a.store_id=$1 AND st.brand_id=$2';
     if (date) { params.push(date); where += ` AND DATE(a.clock_in_at)=$${params.length}`; }
     const { rows } = await query(
       `SELECT a.*, u.name as user_name, u.email, r.name as role
        FROM attendance a
        JOIN users u ON u.id = a.user_id
+       JOIN stores st ON st.id = a.store_id
        LEFT JOIN roles r ON r.id = u.role_id
        ${where} ORDER BY a.clock_in_at`,
       params
@@ -103,13 +144,34 @@ exports.storeAttendance = async (req, res) => {
 exports.livePresence = async (req, res) => {
   try {
     const { rows } = await query(
-      `SELECT u.id, u.name, u.email, r.name as role, a.clock_in_at, a.is_late
+      `SELECT u.id as user_id, u.name, u.email, r.name as role, a.clock_in_at, a.is_late,
+              st.name as store_name,
+              EXTRACT(EPOCH FROM (NOW() - a.clock_in_at))/3600 as hours_on_floor
        FROM attendance a
        JOIN users u ON u.id = a.user_id
+       JOIN stores st ON st.id = a.store_id
        LEFT JOIN roles r ON r.id = u.role_id
-       WHERE a.store_id=$1 AND a.clock_out_at IS NULL
+       WHERE a.store_id=$1 AND st.brand_id=$2 AND a.clock_out_at IS NULL
        ORDER BY a.clock_in_at`,
-      [req.params.storeId]
+      [req.params.storeId, req.user.brand_id]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to get live presence' }); }
+};
+
+exports.allLivePresence = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT u.id as user_id, u.name, u.email, r.name as role, a.clock_in_at, a.is_late,
+              st.name as store_name,
+              EXTRACT(EPOCH FROM (NOW() - a.clock_in_at))/3600 as hours_on_floor
+       FROM attendance a
+       JOIN users u ON u.id = a.user_id
+       JOIN stores st ON st.id = a.store_id
+       LEFT JOIN roles r ON r.id = u.role_id
+       WHERE st.brand_id=$1 AND a.clock_out_at IS NULL
+       ORDER BY st.name, a.clock_in_at`,
+      [req.user.brand_id]
     );
     res.json(rows);
   } catch (err) { res.status(500).json({ error: 'Failed to get live presence' }); }
@@ -136,6 +198,11 @@ exports.listRosters = async (req, res) => {
 exports.createRoster = async (req, res) => {
   try {
     const { store_id, name, start_date, end_date } = req.body;
+    const { rows: storeCheck } = await query(
+      `SELECT id FROM stores WHERE id=$1 AND brand_id=$2`,
+      [store_id, req.user.brand_id]
+    );
+    if (!storeCheck.length) return res.status(404).json({ error: 'Store not found' });
     const { rows } = await query(
       `INSERT INTO roster_schedules(store_id, name, start_date, end_date, created_by)
        VALUES($1,$2,$3,$4,$5) RETURNING *`,
@@ -147,7 +214,12 @@ exports.createRoster = async (req, res) => {
 
 exports.getRoster = async (req, res) => {
   try {
-    const { rows: roster } = await query(`SELECT * FROM roster_schedules WHERE id=$1`, [req.params.id]);
+    const { rows: roster } = await query(
+      `SELECT rs.* FROM roster_schedules rs
+       JOIN stores st ON st.id = rs.store_id
+       WHERE rs.id=$1 AND st.brand_id=$2`,
+      [req.params.id, req.user.brand_id]
+    );
     if (!roster.length) return res.status(404).json({ error: 'Roster not found' });
     const { rows: shifts } = await query(
       `SELECT sh.*, u.name as user_name, u.email FROM shifts sh
@@ -162,8 +234,10 @@ exports.getRoster = async (req, res) => {
 exports.publishRoster = async (req, res) => {
   try {
     await query(
-      `UPDATE roster_schedules SET status='published', published_at=NOW(), published_by=$1 WHERE id=$2`,
-      [req.user.id, req.params.id]
+      `UPDATE roster_schedules SET status='published', published_at=NOW(), published_by=$1
+       WHERE id=$2
+         AND store_id IN (SELECT id FROM stores WHERE brand_id=$3)`,
+      [req.user.id, req.params.id, req.user.brand_id]
     );
     // TODO: send push notification to all staff on this roster via Ntfy
     res.json({ message: 'Roster published and staff notified' });
@@ -193,6 +267,20 @@ exports.myShifts = async (req, res) => {
 exports.createShift = async (req, res) => {
   try {
     const { roster_id, store_id, user_id, date, start_time, end_time, role_label, zone, notes } = req.body;
+    // Verify roster and store belong to this brand
+    const { rows: rosterCheck } = await query(
+      `SELECT rs.id FROM roster_schedules rs
+       JOIN stores st ON st.id = rs.store_id
+       WHERE rs.id=$1 AND st.brand_id=$2`,
+      [roster_id, req.user.brand_id]
+    );
+    if (!rosterCheck.length) return res.status(404).json({ error: 'Roster not found' });
+    // Verify assigned user belongs to this brand
+    const { rows: userCheck } = await query(
+      `SELECT id FROM users WHERE id=$1 AND brand_id=$2`,
+      [user_id, req.user.brand_id]
+    );
+    if (!userCheck.length) return res.status(404).json({ error: 'User not found' });
     const { rows } = await query(
       `INSERT INTO shifts(roster_id,store_id,user_id,date,start_time,end_time,role_label,zone,notes)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
@@ -207,8 +295,13 @@ exports.updateShift = async (req, res) => {
     const { start_time, end_time, role_label, zone, notes } = req.body;
     const { rows } = await query(
       `UPDATE shifts SET start_time=$1,end_time=$2,role_label=$3,zone=$4,notes=$5
-       WHERE id=$6 RETURNING *`,
-      [start_time, end_time, role_label, zone, notes, req.params.id]
+       WHERE id=$6
+         AND roster_id IN (
+           SELECT rs.id FROM roster_schedules rs
+           JOIN stores st ON st.id = rs.store_id
+           WHERE st.brand_id=$7
+         ) RETURNING *`,
+      [start_time, end_time, role_label, zone, notes, req.params.id, req.user.brand_id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Shift not found' });
     res.json(rows[0]);
@@ -217,7 +310,15 @@ exports.updateShift = async (req, res) => {
 
 exports.deleteShift = async (req, res) => {
   try {
-    await query(`DELETE FROM shifts WHERE id=$1`, [req.params.id]);
+    await query(
+      `DELETE FROM shifts WHERE id=$1
+       AND roster_id IN (
+         SELECT rs.id FROM roster_schedules rs
+         JOIN stores st ON st.id = rs.store_id
+         WHERE st.brand_id=$2
+       )`,
+      [req.params.id, req.user.brand_id]
+    );
     res.json({ message: 'Shift deleted' });
   } catch (err) { res.status(500).json({ error: 'Failed to delete shift' }); }
 };
@@ -237,16 +338,25 @@ exports.requestSwap = async (req, res) => {
 exports.reviewSwap = async (req, res) => {
   try {
     const { status } = req.body; // approved or rejected
+    // Verify swap request belongs to this brand via shift → roster → store
+    const { rows: swapCheck } = await query(
+      `SELECT ssr.* FROM shift_swap_requests ssr
+       JOIN shifts sh ON sh.id = ssr.shift_id
+       JOIN roster_schedules rs ON rs.id = sh.roster_id
+       JOIN stores st ON st.id = rs.store_id
+       WHERE ssr.id=$1 AND st.brand_id=$2`,
+      [req.params.id, req.user.brand_id]
+    );
+    if (!swapCheck.length) return res.status(404).json({ error: 'Swap request not found' });
     await query(
       `UPDATE shift_swap_requests SET status=$1, reviewed_by=$2, reviewed_at=NOW() WHERE id=$3`,
       [status, req.user.id, req.params.id]
     );
-    if (status === 'approved') {
-      // Swap the user_id on the shift
-      const { rows: swap } = await query(`SELECT * FROM shift_swap_requests WHERE id=$1`, [req.params.id]);
-      if (swap.length && swap[0].swap_with_user) {
-        await query(`UPDATE shifts SET user_id=$1 WHERE id=$2`, [swap[0].swap_with_user, swap[0].shift_id]);
-      }
+    if (status === 'approved' && swapCheck[0].swap_with_user) {
+      await query(
+        `UPDATE shifts SET user_id=$1 WHERE id=$2`,
+        [swapCheck[0].swap_with_user, swapCheck[0].shift_id]
+      );
     }
     res.json({ message: `Swap request ${status}` });
   } catch (err) { res.status(500).json({ error: 'Failed to review swap' }); }
