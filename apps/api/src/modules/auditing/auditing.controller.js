@@ -107,6 +107,28 @@ exports.updateTemplate = async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to update template' }); }
 };
 
+exports.deleteTemplate = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT id FROM audit_templates WHERE id=$1 AND brand_id=$2`,
+      [req.params.id, req.user.brand_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Template not found' });
+
+    // Cascade: delete categories → questions → template
+    const { rows: cats } = await query(
+      `SELECT id FROM audit_template_categories WHERE template_id=$1`, [req.params.id]
+    );
+    for (const cat of cats) {
+      await query(`DELETE FROM audit_template_questions WHERE category_id=$1`, [cat.id]);
+    }
+    await query(`DELETE FROM audit_template_categories WHERE template_id=$1`, [req.params.id]);
+    await query(`DELETE FROM audit_templates WHERE id=$1 AND brand_id=$2`, [req.params.id, req.user.brand_id]);
+
+    res.json({ message: 'Template deleted' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to delete template' }); }
+};
+
 // ── Schedules ─────────────────────────────────────────────────
 
 exports.listSchedules = async (req, res) => {

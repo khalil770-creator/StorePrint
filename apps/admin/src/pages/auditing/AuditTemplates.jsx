@@ -1,6 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import client from '../../api/client'
 import { colors, shadow } from '../../theme'
 import Badge from '../../components/Badge'
@@ -12,6 +12,21 @@ function getData(res) {
 
 export default function AuditTemplates() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [deletingId, setDeletingId] = useState(null)
+
+  const handleDelete = async (t) => {
+    if (!window.confirm(`Delete template "${t.name}"? This cannot be undone.`)) return
+    setDeletingId(t.id)
+    try {
+      await client.delete(`/auditing/templates/${t.id}`)
+      queryClient.invalidateQueries({ queryKey: ['audit-templates'] })
+    } catch {
+      alert('Failed to delete template.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   const { data: raw, isLoading, error } = useQuery({
     queryKey: ['audit-templates'],
@@ -56,6 +71,16 @@ export default function AuditTemplates() {
       background: colors.primaryBg,
       color: colors.primary,
       border: `1.5px solid ${colors.primary}`,
+      borderRadius: 7,
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: 'pointer',
+    },
+    deleteBtn: {
+      padding: '6px 12px',
+      background: 'transparent',
+      color: colors.error || '#EF4444',
+      border: `1.5px solid ${colors.error || '#EF4444'}`,
       borderRadius: 7,
       fontSize: 12,
       fontWeight: 700,
@@ -115,12 +140,21 @@ export default function AuditTemplates() {
                 <span style={s.meta}>
                   {t.created_at ? new Date(t.created_at).toLocaleDateString() : ''}
                 </span>
-                <button
-                  style={s.editBtn}
-                  onClick={() => navigate(`/admin/audit-templates/${t.id ?? t._id}`)}
-                >
-                  Edit
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    style={s.deleteBtn}
+                    disabled={deletingId === t.id}
+                    onClick={() => handleDelete(t)}
+                  >
+                    {deletingId === t.id ? '…' : 'Delete'}
+                  </button>
+                  <button
+                    style={s.editBtn}
+                    onClick={() => navigate(`/admin/audit-templates/${t.id ?? t._id}`)}
+                  >
+                    Edit
+                  </button>
+                </div>
               </div>
             </div>
           ))}

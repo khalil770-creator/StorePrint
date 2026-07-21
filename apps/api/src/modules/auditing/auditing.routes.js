@@ -10,6 +10,7 @@ router.get('/templates',           requirePermission('auditing', 'read'),   ctrl
 router.post('/templates',          requirePermission('auditing', 'create'), ctrl.createTemplate);
 router.get('/templates/:id',       requirePermission('auditing', 'read'),   ctrl.getTemplate);
 router.put('/templates/:id',       requirePermission('auditing', 'update'), ctrl.updateTemplate);
+router.delete('/templates/:id',    requirePermission('auditing', 'delete'), ctrl.deleteTemplate);
 
 // Schedules
 router.get('/schedules',           requirePermission('auditing', 'read'),   ctrl.listSchedules);
