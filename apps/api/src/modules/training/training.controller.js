@@ -33,14 +33,15 @@ exports.listCourses = async (req, res) => {
 exports.createCourse = async (req, res) => {
   try {
     const { title, description, category, thumbnail_url, modules = [],
-      duration_mins, duration_minutes, pass_score, pass_mark } = req.body;
+      duration_mins, duration_minutes, pass_score, pass_mark, status } = req.body;
     const durMins  = duration_mins  || duration_minutes  || null;
     const passScore = pass_score || pass_mark || 80;
+    const courseStatus = status || 'draft';
     const { rows } = await query(
-      `INSERT INTO training_courses(brand_id, title, description, category, duration_mins, pass_score, thumbnail_url, created_by)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      `INSERT INTO training_courses(brand_id, title, description, category, duration_mins, pass_score, thumbnail_url, status, is_active, created_by)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
       [req.user.brand_id, title, description || null, category || null,
-       durMins, passScore, thumbnail_url || null, req.user.id]
+       durMins, passScore, thumbnail_url || null, courseStatus, courseStatus === 'published', req.user.id]
     );
     const course = rows[0];
     const insertedModules = [];
@@ -62,7 +63,8 @@ exports.createCourse = async (req, res) => {
 exports.getCourse = async (req, res) => {
   try {
     const { rows: course } = await query(
-      `SELECT tc.*, u.name as created_by_name
+      `SELECT tc.*, u.name as created_by_name,
+              tc.pass_score as pass_mark, tc.duration_mins as duration_minutes
        FROM training_courses tc
        LEFT JOIN users u ON u.id = tc.created_by
        WHERE tc.id=$1 AND tc.brand_id=$2`,
@@ -99,15 +101,17 @@ exports.getCourse = async (req, res) => {
 exports.updateCourse = async (req, res) => {
   try {
     const { title, description, category, thumbnail_url, modules,
-      duration_mins, duration_minutes, pass_score, pass_mark } = req.body;
+      duration_mins, duration_minutes, pass_score, pass_mark, status } = req.body;
     const durMins   = duration_mins  || duration_minutes  || null;
     const passScore = pass_score || pass_mark || 80;
+    const courseStatus = status || 'draft';
     const { rows } = await query(
       `UPDATE training_courses SET title=$1, description=$2, category=$3,
-         duration_mins=$4, pass_score=$5, thumbnail_url=$6, updated_at=NOW()
-       WHERE id=$7 AND brand_id=$8 RETURNING *`,
+         duration_mins=$4, pass_score=$5, thumbnail_url=$6, status=$7, is_active=$8, updated_at=NOW()
+       WHERE id=$9 AND brand_id=$10 RETURNING *`,
       [title, description || null, category || null, durMins,
-       passScore, thumbnail_url || null, req.params.id, req.user.brand_id]
+       passScore, thumbnail_url || null, courseStatus, courseStatus === 'published',
+       req.params.id, req.user.brand_id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Course not found' });
 
