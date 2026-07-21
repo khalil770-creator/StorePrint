@@ -12,10 +12,12 @@ exports.listCourses = async (req, res) => {
 
     const { rows } = await query(
       `SELECT tc.*, u.name as created_by_name,
-              COUNT(DISTINCT te.id) as enrollment_count,
-              COUNT(DISTINCT CASE WHEN te.status='completed' THEN te.id END) as completed_count
+              COUNT(DISTINCT tm.id)::int as module_count,
+              COUNT(DISTINCT te.id)::int as enrollment_count,
+              COUNT(DISTINCT CASE WHEN te.status='completed' THEN te.id END)::int as completed_count
        FROM training_courses tc
        LEFT JOIN users u ON u.id = tc.created_by
+       LEFT JOIN training_modules tm ON tm.course_id = tc.id
        LEFT JOIN training_enrollments te ON te.course_id = tc.id
        ${where}
        GROUP BY tc.id, u.name

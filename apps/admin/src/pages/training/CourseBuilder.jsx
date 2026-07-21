@@ -67,6 +67,7 @@ export default function CourseBuilder() {
         : client.put(`/training/courses/${id}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['training-courses'] })
+      if (!isNew) qc.invalidateQueries({ queryKey: ['training-course', id] })
       window.alert(isNew ? 'Course created!' : 'Course updated!')
       navigate('/admin/courses')
     },
