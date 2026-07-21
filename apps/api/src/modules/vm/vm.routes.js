@@ -8,6 +8,8 @@ router.use(authenticate);
 // Templates
 router.get('/templates',             requirePermission('vm', 'read'),   ctrl.listTemplates);
 router.post('/templates',            requirePermission('vm', 'create'), ctrl.createTemplate);
+router.put('/templates/:id',         requirePermission('vm', 'update'), ctrl.updateTemplate);
+router.delete('/templates/:id',      requirePermission('vm', 'delete'), ctrl.deleteTemplate);
 
 // Compliance report
 router.get('/compliance',            requirePermission('vm', 'read'),   ctrl.getCompliance);

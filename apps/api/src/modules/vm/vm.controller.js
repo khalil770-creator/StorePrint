@@ -31,6 +31,33 @@ exports.createTemplate = async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to create VM template' }); }
 };
 
+exports.updateTemplate = async (req, res) => {
+  try {
+    const { title, description, zone_name, planogram_url, instructions, is_active } = req.body;
+    const { rows } = await query(
+      `UPDATE vm_templates SET title=$1, description=$2, zone_name=$3, planogram_url=$4,
+         instructions=$5, is_active=$6, updated_at=NOW()
+       WHERE id=$7 AND brand_id=$8 RETURNING *`,
+      [title, description || null, zone_name || null, planogram_url || null,
+       instructions || null, is_active !== undefined ? is_active : true,
+       req.params.id, req.user.brand_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Template not found' });
+    res.json(rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to update VM template' }); }
+};
+
+exports.deleteTemplate = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `DELETE FROM vm_templates WHERE id=$1 AND brand_id=$2 RETURNING id`,
+      [req.params.id, req.user.brand_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Template not found' });
+    res.json({ success: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to delete VM template' }); }
+};
+
 // ── VM Tasks ──────────────────────────────────────────────────
 
 exports.listTasks = async (req, res) => {

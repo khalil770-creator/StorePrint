@@ -68,11 +68,15 @@ const SELECT = { ...INPUT, cursor: 'pointer' }
 export default function VMPage() {
   const [tab, setTab] = useState('templates')
   const [showTemplateModal, setShowTemplateModal] = useState(false)
+  const [editingTemplate, setEditingTemplate] = useState(null)
   const [showTaskModal, setShowTaskModal] = useState(false)
+  const [deletingTemplateId, setDeletingTemplateId] = useState(null)
   const qc = useQueryClient()
 
+  const emptyTForm = { title: '', description: '', zone_name: '', planogram_url: '', instructions: '' }
+
   // ── Templates ──
-  const [tForm, setTForm] = useState({ title: '', description: '', zone_name: '', planogram_url: '', instructions: '' })
+  const [tForm, setTForm] = useState(emptyTForm)
   const [tErrors, setTErrors] = useState({})
 
   const { data: rawTemplates, isLoading: loadingTemplates, error: errTemplates } = useQuery({
@@ -83,8 +87,28 @@ export default function VMPage() {
 
   const createTemplate = useMutation({
     mutationFn: (payload) => client.post('/vm/templates', payload),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['vm-templates'] }); setShowTemplateModal(false); setTForm({ title: '', description: '', zone_name: '', planogram_url: '', instructions: '' }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['vm-templates'] }); setShowTemplateModal(false); setTForm(emptyTForm) },
   })
+
+  const updateTemplate = useMutation({
+    mutationFn: ({ id, payload }) => client.put(`/vm/templates/${id}`, payload),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['vm-templates'] }); setEditingTemplate(null); setTForm(emptyTForm) },
+  })
+
+  const deleteTemplate = async (t) => {
+    if (!window.confirm(`Delete template "${t.title}"? This cannot be undone.`)) return
+    setDeletingTemplateId(t.id)
+    try {
+      await client.delete(`/vm/templates/${t.id}`)
+      qc.invalidateQueries({ queryKey: ['vm-templates'] })
+    } catch { alert('Failed to delete template.') }
+    finally { setDeletingTemplateId(null) }
+  }
+
+  function openEditTemplate(t) {
+    setTForm({ title: t.title || '', description: t.description || '', zone_name: t.zone_name || '', planogram_url: t.planogram_url || '', instructions: t.instructions || '' })
+    setEditingTemplate(t)
+  }
 
   function submitTemplate(e) {
     e.preventDefault()
@@ -92,7 +116,11 @@ export default function VMPage() {
     if (!tForm.title.trim()) errs.title = 'Required'
     if (Object.keys(errs).length) { setTErrors(errs); return }
     setTErrors({})
-    createTemplate.mutate(tForm)
+    if (editingTemplate) {
+      updateTemplate.mutate({ id: editingTemplate.id, payload: tForm })
+    } else {
+      createTemplate.mutate(tForm)
+    }
   }
 
   // ── Tasks ──
@@ -157,6 +185,9 @@ export default function VMPage() {
     empty: { textAlign: 'center', padding: '72px 0', color: colors.lightGrey, fontSize: 14 },
     loadText: { color: colors.midGrey, fontSize: 13, padding: '16px 0' },
     errorText: { color: colors.error, fontSize: 13, padding: '16px 0' },
+    editBtn: { padding: '6px 14px', background: colors.primaryBg, color: colors.primary, border: `1.5px solid ${colors.primary}`, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
+    deleteBtn: { padding: '6px 12px', background: 'transparent', color: colors.error || '#EF4444', border: `1.5px solid ${colors.error || '#EF4444'}`, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
+    cardFooter: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 },
     modalTitle: { fontSize: 17, fontWeight: 800, color: colors.dark, marginBottom: 24 },
     modalActions: { display: 'flex', gap: 10, marginTop: 8 },
     submitBtn: { padding: '9px 22px', background: colors.primary, color: colors.white, border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' },
@@ -200,6 +231,20 @@ export default function VMPage() {
                   </div>
                   {t.zone_name && <span style={s.chip}>{t.zone_name}</span>}
                   {t.description && <div style={s.meta}>{t.description}</div>}
+                  {t.instructions && (
+                    <div style={{ fontSize: 12, color: colors.midGrey, borderTop: `1px solid ${colors.border}`, paddingTop: 8 }}>
+                      <strong style={{ color: colors.dark }}>Instructions:</strong> {t.instructions}
+                    </div>
+                  )}
+                  {t.planogram_url && (
+                    <a href={t.planogram_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: colors.primary }}>View Planogram →</a>
+                  )}
+                  <div style={s.cardFooter}>
+                    <button style={s.deleteBtn} disabled={deletingTemplateId === t.id} onClick={() => deleteTemplate(t)}>
+                      {deletingTemplateId === t.id ? '…' : 'Delete'}
+                    </button>
+                    <button style={s.editBtn} onClick={() => openEditTemplate(t)}>Edit</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -252,14 +297,14 @@ export default function VMPage() {
         </>
       )}
 
-      {/* ── New Template Modal ── */}
-      {showTemplateModal && (
-        <div style={OVERLAY} onClick={() => setShowTemplateModal(false)}>
+      {/* ── New / Edit Template Modal ── */}
+      {(showTemplateModal || editingTemplate) && (
+        <div style={OVERLAY} onClick={() => { setShowTemplateModal(false); setEditingTemplate(null); setTForm(emptyTForm) }}>
           <div style={MODAL} onClick={(e) => e.stopPropagation()}>
-            <div style={s.modalTitle}>New VM Template</div>
-            {createTemplate.isError && (
+            <div style={s.modalTitle}>{editingTemplate ? 'Edit VM Template' : 'New VM Template'}</div>
+            {(createTemplate.isError || updateTemplate.isError) && (
               <div style={{ background: colors.errorBg, color: colors.error, borderRadius: 8, padding: '9px 14px', fontSize: 12, marginBottom: 16 }}>
-                Failed to create template.
+                Failed to {editingTemplate ? 'update' : 'create'} template.
               </div>
             )}
             <form onSubmit={submitTemplate}>
@@ -279,10 +324,10 @@ export default function VMPage() {
                 <textarea style={TEXTAREA} value={tForm.instructions} onChange={(e) => setTForm((f) => ({ ...f, instructions: e.target.value }))} placeholder="Step-by-step instructions" />
               </FormField>
               <div style={s.modalActions}>
-                <button type="submit" style={s.submitBtn} disabled={createTemplate.isPending}>
-                  {createTemplate.isPending ? 'Creating…' : 'Create Template'}
+                <button type="submit" style={s.submitBtn} disabled={createTemplate.isPending || updateTemplate.isPending}>
+                  {(createTemplate.isPending || updateTemplate.isPending) ? 'Saving…' : editingTemplate ? 'Save Changes' : 'Create Template'}
                 </button>
-                <button type="button" style={s.cancelBtn} onClick={() => setShowTemplateModal(false)}>Cancel</button>
+                <button type="button" style={s.cancelBtn} onClick={() => { setShowTemplateModal(false); setEditingTemplate(null); setTForm(emptyTForm) }}>Cancel</button>
               </div>
             </form>
           </div>
