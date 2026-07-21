@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import client from '../../api/client'
@@ -51,6 +51,18 @@ export default function SurveysList() {
 
   const surveys   = Array.isArray(getData(rawSurveys))   ? getData(rawSurveys)   : []
   const responses = Array.isArray(getData(rawResponses)) ? getData(rawResponses) : []
+
+  const summary = useMemo(() => {
+    if (!responses.length) return null
+    const withNps  = responses.filter(r => r.nps_score  != null)
+    const withCsat = responses.filter(r => r.csat_score != null)
+    const avgNps   = withNps.length  ? (withNps.reduce((s, r)  => s + Number(r.nps_score),  0) / withNps.length).toFixed(1)  : null
+    const avgCsat  = withCsat.length ? (withCsat.reduce((s, r) => s + Number(r.csat_score), 0) / withCsat.length).toFixed(1) : null
+    const promoters  = withNps.filter(r => r.nps_score >= 9).length
+    const detractors = withNps.filter(r => r.nps_score <= 6).length
+    const npsScore   = withNps.length ? Math.round(((promoters - detractors) / withNps.length) * 100) : null
+    return { total: responses.length, avgNps, avgCsat, npsScore }
+  }, [responses])
 
   const s = {
     page: { padding: '32px 40px', background: colors.background, minHeight: '100vh' },
@@ -147,6 +159,22 @@ export default function SurveysList() {
       {/* ── Responses Tab ── */}
       {tab === 'responses' && (
         <>
+          {/* Summary cards */}
+          {summary && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 16, marginBottom: 24 }}>
+              {[
+                { label: 'Total Responses', value: summary.total },
+                { label: 'Avg NPS Score',   value: summary.avgNps  != null ? summary.avgNps  : '—' },
+                { label: 'NPS Index',        value: summary.npsScore != null ? `${summary.npsScore > 0 ? '+' : ''}${summary.npsScore}` : '—' },
+                { label: 'Avg CSAT',         value: summary.avgCsat != null ? `${summary.avgCsat}/10` : '—' },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ background: colors.white, borderRadius: 12, padding: '16px 20px', boxShadow: shadow.sm, border: `1px solid ${colors.border}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: colors.lightGrey, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>{label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: colors.dark, fontFamily: fonts.mono }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          )}
           {loadingResponses && <div style={s.loadText}>Loading responses…</div>}
           {errResponses && <div style={s.errorText}>Failed to load responses.</div>}
           {!loadingResponses && !errResponses && responses.length === 0 && (

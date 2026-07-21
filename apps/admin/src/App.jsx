@@ -14,6 +14,7 @@ import StoreCreatePage   from './pages/stores/StoreCreate'
 import RolesPage         from './pages/roles/RolesPage'
 import AuditTemplates    from './pages/auditing/AuditTemplates'
 import AuditBuilder      from './pages/auditing/AuditBuilder'
+import AuditDetail       from './pages/auditing/AuditDetail'
 import EnvChecklists     from './pages/environment/EnvChecklists'
 import EnvBuilder        from './pages/environment/EnvBuilder'
 import SurveysList       from './pages/cx/SurveysList'
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="audit-templates" element={<AuditTemplates />} />
             <Route path="audit-templates/:id" element={<AuditBuilder />} />
             <Route path="audit-templates/new" element={<AuditBuilder />} />
+            <Route path="audits/:id" element={<AuditDetail />} />
             <Route path="env-checklists" element={<EnvChecklists />} />
             <Route path="env-checklists/:id" element={<EnvBuilder />} />
             <Route path="env-checklists/new" element={<EnvBuilder />} />

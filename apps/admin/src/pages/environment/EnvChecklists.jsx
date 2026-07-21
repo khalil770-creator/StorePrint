@@ -69,8 +69,15 @@ export default function EnvChecklists() {
     enabled: tab === 'submissions',
   })
 
-  const checklists = Array.isArray(getData(rawTemplates)) ? getData(rawTemplates) : []
-  const submissions = Array.isArray(getData(rawSubs)) ? getData(rawSubs) : []
+  const { data: rawIssues, isLoading: loadingIssues, error: errIssues } = useQuery({
+    queryKey: ['env-issues'],
+    queryFn: () => client.get('/environment/issues'),
+    enabled: tab === 'issues',
+  })
+
+  const checklists  = Array.isArray(getData(rawTemplates)) ? getData(rawTemplates) : []
+  const submissions = Array.isArray(getData(rawSubs))      ? getData(rawSubs)      : []
+  const issues      = Array.isArray(getData(rawIssues))    ? getData(rawIssues)    : []
 
   const s = {
     page: { padding: '32px 40px', background: colors.background, minHeight: '100vh' },
@@ -130,8 +137,9 @@ export default function EnvChecklists() {
       />
 
       <div style={s.tabBar}>
-        <button style={TAB_STYLE(tab === 'templates')} onClick={() => setTab('templates')}>Templates</button>
+        <button style={TAB_STYLE(tab === 'templates')}   onClick={() => setTab('templates')}>Templates</button>
         <button style={TAB_STYLE(tab === 'submissions')} onClick={() => setTab('submissions')}>Submissions</button>
+        <button style={TAB_STYLE(tab === 'issues')}      onClick={() => setTab('issues')}>Issues</button>
       </div>
 
       {/* ── Templates Tab ── */}
@@ -211,6 +219,54 @@ export default function EnvChecklists() {
                       </td>
                       <td style={{ ...s.td, fontFamily: fonts.mono, fontSize: 12, color: colors.midGrey }}>
                         {sub.submitted_at ? new Date(sub.submitted_at).toLocaleString() : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+      {/* ── Issues Tab ── */}
+      {tab === 'issues' && (
+        <>
+          {loadingIssues && <div style={s.loadText}>Loading issues…</div>}
+          {errIssues && <div style={s.errorText}>Failed to load issues.</div>}
+          {!loadingIssues && !errIssues && issues.length === 0 && (
+            <div style={s.empty}>No open issues.<br />Issues are auto-created when field staff flag problems during a submission.</div>
+          )}
+          {issues.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={s.table}>
+                <thead>
+                  <tr>
+                    <th style={s.th}>Item</th>
+                    <th style={s.th}>Store</th>
+                    <th style={s.th}>Severity</th>
+                    <th style={s.th}>Status</th>
+                    <th style={s.th}>Reported</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {issues.map((issue) => (
+                    <tr key={issue.id}>
+                      <td style={{ ...s.td, maxWidth: 280 }}>{issue.item_text || '—'}</td>
+                      <td style={s.td}>{issue.store_name || '—'}</td>
+                      <td style={s.td}>
+                        <Badge
+                          status={issue.severity === 'high' ? 'error' : issue.severity === 'medium' ? 'open' : 'inactive'}
+                          label={issue.severity || 'medium'}
+                        />
+                      </td>
+                      <td style={s.td}>
+                        <Badge
+                          status={issue.status === 'resolved' ? 'active' : issue.status === 'in_progress' ? 'open' : 'inactive'}
+                          label={issue.status || 'open'}
+                        />
+                      </td>
+                      <td style={{ ...s.td, fontSize: 12, color: colors.midGrey, fontFamily: fonts.mono }}>
+                        {issue.created_at ? new Date(issue.created_at).toLocaleDateString() : '—'}
                       </td>
                     </tr>
                   ))}
