@@ -78,9 +78,16 @@ export default function RosterPage() {
 
   const createShift = useMutation({
     mutationFn: async (p) => {
-      // Generate one shift per day in the date range
       const start = new Date(p.shift_start)
       const end = new Date(p.shift_end)
+      const rStart = new Date(selectedRoster?.start_date)
+      const rEnd = new Date(selectedRoster?.end_date)
+      if (start < rStart || end > rEnd) {
+        throw new Error(`Shift dates must be within the roster period (${selectedRoster?.start_date} → ${selectedRoster?.end_date})`)
+      }
+      if (start > end) {
+        throw new Error('From date must be before or equal to To date')
+      }
       const days = []
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         days.push(d.toISOString().slice(0, 10))
@@ -95,7 +102,7 @@ export default function RosterPage() {
       }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts', selectedRoster?.id] }); setShowShiftModal(false); setSForm(emptyShift) },
-    onError: () => alert('Failed to create shift.'),
+    onError: (err) => alert(err?.response?.data?.error || err?.message || 'Failed to create shift.'),
   })
 
   const copyRoster = useMutation({
