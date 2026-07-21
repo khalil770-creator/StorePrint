@@ -70,17 +70,16 @@ exports.getCampaign = async (req, res) => {
       [req.params.id]
     );
     const { rows: assignments } = await query(
-      `SELECT csa.*, s.name as store_name, u.name as assigned_by_name
+      `SELECT csa.*, s.name as store_name
        FROM campaign_store_assignments csa
        JOIN stores s ON s.id = csa.store_id
-       LEFT JOIN users u ON u.id = csa.assigned_by
        WHERE csa.campaign_id=$1`,
       [req.params.id]
     );
     const { rows: confirmations } = await query(
       `SELECT cc.*, s.name as store_name, u.name as confirmed_by_name
        FROM campaign_confirmations cc
-       JOIN stores s ON s.id = cc.store_id
+       LEFT JOIN stores s ON s.id = cc.store_id
        LEFT JOIN users u ON u.id = cc.confirmed_by
        WHERE cc.campaign_id=$1`,
       [req.params.id]
