@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import client from '../../api/client'
 import { colors, shadow, fonts } from '../../theme'
 import Badge from '../../components/Badge'
@@ -50,7 +50,19 @@ function CompliancePct({ pct }) {
 
 export default function CampaignsList() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const [tab, setTab] = useState('campaigns')
+  const [deletingId, setDeletingId] = useState(null)
+
+  async function handleDelete(c) {
+    if (!window.confirm(`Delete campaign "${c.title}"? This cannot be undone.`)) return
+    setDeletingId(c.id)
+    try {
+      await client.delete(`/campaigns/${c.id}`)
+      qc.invalidateQueries({ queryKey: ['campaigns'] })
+    } catch { alert('Failed to delete campaign.') }
+    finally { setDeletingId(null) }
+  }
 
   const { data: raw, isLoading, error } = useQuery({
     queryKey: ['campaigns'],
@@ -81,6 +93,10 @@ export default function CampaignsList() {
     editBtn: {
       padding: '6px 14px', background: colors.primaryBg, color: colors.primary,
       border: `1.5px solid ${colors.primary}`, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+    },
+    deleteBtn: {
+      padding: '6px 12px', background: 'transparent', color: colors.error || '#EF4444',
+      border: `1.5px solid ${colors.error || '#EF4444'}`, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer',
     },
     table: { width: '100%', borderCollapse: 'collapse', background: colors.white, borderRadius: 12, overflow: 'hidden', boxShadow: shadow.sm },
     th: { padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: colors.lightGrey, textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: `1px solid ${colors.border}`, background: colors.surfaceLow },
@@ -156,7 +172,12 @@ export default function CampaignsList() {
                   </div>
                   <div style={s.footer}>
                     <span style={s.meta}></span>
-                    <button style={s.editBtn} onClick={() => navigate(`/admin/campaigns/${c.id}`)}>Edit</button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button style={s.deleteBtn} disabled={deletingId === c.id} onClick={() => handleDelete(c)}>
+                        {deletingId === c.id ? '…' : 'Delete'}
+                      </button>
+                      <button style={s.editBtn} onClick={() => navigate(`/admin/campaigns/${c.id}`)}>Edit</button>
+                    </div>
                   </div>
                 </div>
               ))}

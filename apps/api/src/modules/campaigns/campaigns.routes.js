@@ -9,6 +9,7 @@ router.get('/',                      requirePermission('campaigns', 'read'),   c
 router.post('/',                     requirePermission('campaigns', 'create'), ctrl.createCampaign);
 router.get('/:id',                   requirePermission('campaigns', 'read'),   ctrl.getCampaign);
 router.put('/:id',                   requirePermission('campaigns', 'update'), ctrl.updateCampaign);
+router.delete('/:id',                requirePermission('campaigns', 'delete'), ctrl.deleteCampaign);
 router.post('/:id/publish',          requirePermission('campaigns', 'update'), ctrl.publishCampaign);
 router.post('/:id/assets',           requirePermission('campaigns', 'update'), ctrl.uploadAsset);
 router.post('/:id/stores',           requirePermission('campaigns', 'update'), ctrl.assignStores);

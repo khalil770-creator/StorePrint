@@ -37,6 +37,19 @@ exports.createCampaign = async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to create campaign' }); }
 };
 
+// ── Delete Campaign ───────────────────────────────────────────
+
+exports.deleteCampaign = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `DELETE FROM campaigns WHERE id=$1 AND brand_id=$2 RETURNING id`,
+      [req.params.id, req.user.brand_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Campaign not found' });
+    res.json({ success: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to delete campaign' }); }
+};
+
 // ── Get Campaign ──────────────────────────────────────────────
 
 exports.getCampaign = async (req, res) => {
