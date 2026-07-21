@@ -110,6 +110,19 @@ exports.updateChecklist = async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to update checklist' }); }
 };
 
+exports.deleteChecklist = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT id FROM environment_checklists WHERE id=$1 AND brand_id=$2`,
+      [req.params.id, req.user.brand_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Checklist not found' });
+    await query(`DELETE FROM environment_checklist_items WHERE checklist_id=$1`, [req.params.id]);
+    await query(`DELETE FROM environment_checklists WHERE id=$1 AND brand_id=$2`, [req.params.id, req.user.brand_id]);
+    res.json({ message: 'Checklist deleted' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to delete checklist' }); }
+};
+
 // ── Submit Checklist (GPS required) ──────────────────────────
 
 exports.submitChecklist = async (req, res) => {

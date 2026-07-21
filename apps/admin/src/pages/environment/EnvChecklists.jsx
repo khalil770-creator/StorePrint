@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import client from '../../api/client'
 import { colors, shadow, fonts } from '../../theme'
 import Badge from '../../components/Badge'
@@ -35,7 +35,28 @@ function ScoreBadge({ score }) {
 
 export default function EnvChecklists() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [tab, setTab] = useState('templates')
+  const [actionId, setActionId] = useState(null)
+
+  const handleDelete = async (c) => {
+    if (!window.confirm(`Delete checklist "${c.title || c.name}"? This cannot be undone.`)) return
+    setActionId(c.id)
+    try {
+      await client.delete(`/environment/checklists/${c.id}`)
+      queryClient.invalidateQueries({ queryKey: ['env-checklists'] })
+    } catch { alert('Failed to delete checklist.') }
+    finally { setActionId(null) }
+  }
+
+  const handleTogglePublish = async (c) => {
+    setActionId(c.id)
+    try {
+      await client.put(`/environment/checklists/${c.id}`, { ...c, is_active: !c.is_active })
+      queryClient.invalidateQueries({ queryKey: ['env-checklists'] })
+    } catch { alert('Failed to update checklist.') }
+    finally { setActionId(null) }
+  }
 
   const { data: rawTemplates, isLoading: loadingTemplates, error: errTemplates } = useQuery({
     queryKey: ['env-checklists'],
@@ -73,6 +94,18 @@ export default function EnvChecklists() {
     editBtn: {
       padding: '6px 14px', background: colors.primaryBg, color: colors.primary,
       border: `1.5px solid ${colors.primary}`, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+    },
+    publishBtn: {
+      padding: '6px 12px', background: 'transparent', color: colors.success || '#10B981',
+      border: `1.5px solid ${colors.success || '#10B981'}`, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+    },
+    unpublishBtn: {
+      padding: '6px 12px', background: 'transparent', color: colors.warning || '#F59E0B',
+      border: `1.5px solid ${colors.warning || '#F59E0B'}`, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+    },
+    deleteBtn: {
+      padding: '6px 12px', background: 'transparent', color: colors.error || '#EF4444',
+      border: `1.5px solid ${colors.error || '#EF4444'}`, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer',
     },
     table: { width: '100%', borderCollapse: 'collapse', background: colors.white, borderRadius: 12, overflow: 'hidden', boxShadow: shadow.sm },
     th: { padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: colors.lightGrey, textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: `1px solid ${colors.border}`, background: colors.surfaceLow },
@@ -121,7 +154,19 @@ export default function EnvChecklists() {
                   <div style={s.meta}>{c.item_count ?? 0} items</div>
                   <div style={s.footer}>
                     <span style={s.meta}>{c.created_at ? new Date(c.created_at).toLocaleDateString() : ''}</span>
-                    <button style={s.editBtn} onClick={() => navigate(`/admin/env-checklists/${c.id}`)}>Edit</button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        style={s.deleteBtn}
+                        disabled={actionId === c.id}
+                        onClick={() => handleDelete(c)}
+                      >{actionId === c.id ? '…' : 'Delete'}</button>
+                      <button
+                        style={c.is_active ? s.unpublishBtn : s.publishBtn}
+                        disabled={actionId === c.id}
+                        onClick={() => handleTogglePublish(c)}
+                      >{c.is_active ? 'Unpublish' : 'Publish'}</button>
+                      <button style={s.editBtn} onClick={() => navigate(`/admin/env-checklists/${c.id}`)}>Edit</button>
+                    </div>
                   </div>
                 </div>
               ))}

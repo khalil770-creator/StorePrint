@@ -9,6 +9,7 @@ router.get('/checklists',                requirePermission('environment', 'read'
 router.post('/checklists',               requirePermission('environment', 'create'), ctrl.createChecklist);
 router.get('/checklists/:id',            requirePermission('environment', 'read'),   ctrl.getChecklist);
 router.put('/checklists/:id',            requirePermission('environment', 'update'), ctrl.updateChecklist);
+router.delete('/checklists/:id',         requirePermission('environment', 'delete'), ctrl.deleteChecklist);
 router.post('/checklists/:id/submit',    requirePermission('environment', 'update'), gpsVerify('store_id'), ctrl.submitChecklist);
 router.get('/submissions',               requirePermission('environment', 'read'),   ctrl.listSubmissions);
 router.get('/submissions/:id',           requirePermission('environment', 'read'),   ctrl.getSubmission);
