@@ -94,24 +94,24 @@ exports.invite = async (req, res) => {
 
 exports.update = async (req, res) => {
   try {
-    const { name, phone, avatar_url, role_id, status, store_id } = req.body;
+    const { name, phone, avatar_url, role_id, status, store_ids = [], store_id } = req.body;
+    // support both store_ids[] and legacy single store_id
+    const storeList = store_ids.length ? store_ids : (store_id ? [store_id] : []);
     await query(
       `UPDATE users SET name=$1, phone=$2, avatar_url=$3, role_id=$4, status=$5, updated_at=NOW()
        WHERE id=$6 AND brand_id=$7`,
       [name, phone, avatar_url, role_id || null, status || 'active',
        req.params.id, req.user.brand_id]
     );
-    // Always sync store assignment: clear existing then insert new if provided
-    // Only delete stores for users belonging to this brand
     await query(
       `DELETE FROM user_stores WHERE user_id=$1
        AND user_id IN (SELECT id FROM users WHERE brand_id=$2)`,
       [req.params.id, req.user.brand_id]
     );
-    if (store_id) {
+    for (const sid of storeList) {
       await query(
         `INSERT INTO user_stores(user_id, store_id) VALUES($1,$2) ON CONFLICT DO NOTHING`,
-        [req.params.id, store_id]
+        [req.params.id, sid]
       );
     }
     res.json({ message: 'User updated' });

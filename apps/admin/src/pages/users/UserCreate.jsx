@@ -48,7 +48,7 @@ export default function UserCreate() {
 
   const [form, setForm] = useState({
     name: '', email: '', phone: '', password: '',
-    role_id: '', store_id: '',
+    role_id: '', store_ids: [],
   })
   const [errors, setErrors]   = useState({})
   const [mutErr, setMutErr]   = useState('')
@@ -95,7 +95,7 @@ export default function UserCreate() {
       phone:     form.phone.trim() || undefined,
       password:  form.password.trim() || undefined,
       role_id:   form.role_id  || undefined,
-      store_ids: form.store_id ? [form.store_id] : [],
+      store_ids: form.store_ids,
     })
   }
 
@@ -207,9 +207,16 @@ export default function UserCreate() {
             </div>
 
             <div style={s.field}>
-              <label style={s.label}>Store</label>
-              <select style={s.select} value={form.store_id} onChange={set('store_id')}>
-                <option value="">— No store —</option>
+              <label style={s.label}>Stores (hold Ctrl/Cmd to select multiple)</label>
+              <select
+                multiple
+                style={{ ...s.select, height: 120 }}
+                value={form.store_ids}
+                onChange={e => {
+                  const selected = Array.from(e.target.selectedOptions).map(o => o.value)
+                  setForm(prev => ({ ...prev, store_ids: selected }))
+                }}
+              >
                 {(Array.isArray(stores) ? stores : []).map(st => (
                   <option key={st.id} value={st.id}>{st.name}</option>
                 ))}

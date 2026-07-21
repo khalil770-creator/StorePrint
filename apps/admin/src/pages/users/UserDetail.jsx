@@ -365,7 +365,7 @@ export default function UserDetail() {
     name: '',
     phone: '',
     role_id: '',
-    store_id: '',
+    store_ids: [],
     status: 'active',
   })
 
@@ -376,7 +376,7 @@ export default function UserDetail() {
         name:     user.name     ?? '',
         phone:    user.phone    ?? '',
         role_id:  user.role_id  != null ? String(user.role_id)  : '',
-        store_id: user.store_ids?.[0] ?? user.store_id ?? '',
+        store_ids: user.store_ids ?? (user.store_id ? [user.store_id] : []),
         status:   user.status   ?? 'active',
       })
     }
@@ -404,7 +404,7 @@ export default function UserDetail() {
       name:     form.name.trim(),
       phone:    form.phone.trim(),
       role_id:  form.role_id  || null,   // UUIDs — never convert with Number()
-      store_id: form.store_id || null,
+      store_ids: form.store_ids,
       status:   form.status,
     })
   }
@@ -546,15 +546,18 @@ export default function UserDetail() {
                 </select>
               </div>
 
-              {/* Store */}
+              {/* Stores */}
               <div style={s.field}>
-                <label style={s.label}>Store</label>
+                <label style={s.label}>Stores (hold Ctrl/Cmd to select multiple)</label>
                 <select
-                  style={s.select}
-                  value={form.store_id}
-                  onChange={handleChange('store_id')}
+                  multiple
+                  style={{ ...s.select, height: 120 }}
+                  value={form.store_ids}
+                  onChange={e => {
+                    const selected = Array.from(e.target.selectedOptions).map(o => o.value)
+                    setForm(prev => ({ ...prev, store_ids: selected }))
+                  }}
                 >
-                  <option value="">— No store —</option>
                   {stores.map(st => (
                     <option key={st.id} value={String(st.id)}>
                       {st.name}
