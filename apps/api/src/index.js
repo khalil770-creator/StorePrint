@@ -39,7 +39,7 @@ app.use('/api/vm',             require('./modules/vm/vm.routes'));
 app.use('/api/signage',        require('./modules/signage/signage.routes'));
 
 // Phase 3 routes
-app.use('/api/training',       require('./modules/training/training.routes'));
+app.use('/api/training/courses', require('./modules/training/training.routes'));
 app.use('/api/environment',    require('./modules/environment/environment.routes'));
 app.use('/api/cx',             require('./modules/cx/cx.routes'));
 
