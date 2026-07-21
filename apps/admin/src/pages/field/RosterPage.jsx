@@ -105,7 +105,6 @@ export default function RosterPage() {
   })
 
   const deleteShift = async (id) => {
-    if (!window.confirm('Delete this shift?')) return
     try {
       await client.delete(`/field/shifts/${id}`)
       qc.invalidateQueries({ queryKey: ['shifts', selectedRoster?.id] })
