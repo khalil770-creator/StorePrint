@@ -29,7 +29,7 @@ export default function RosterPage() {
   const [selectedRoster, setSelectedRoster] = useState(null)
   const qc = useQueryClient()
 
-  const emptyRoster = { name: '', store_id: '', week_start: '', notes: '' }
+  const emptyRoster = { name: '', store_id: '', start_date: '', end_date: '' }
   const [rForm, setRForm] = useState(emptyRoster)
 
   const emptyShift = { roster_id: '', user_id: '', date: '', start_time: '', end_time: '', role: '', zone: '' }
@@ -149,7 +149,7 @@ export default function RosterPage() {
                     <Badge status={r.status === 'published' ? 'active' : 'inactive'} label={r.status || 'draft'} />
                   </div>
                   {r.store_name && <div style={s.meta}>📍 {r.store_name}</div>}
-                  {r.week_start && <div style={s.meta}>Week of {new Date(r.week_start).toLocaleDateString()}</div>}
+                  {r.start_date && <div style={s.meta}>{new Date(r.start_date).toLocaleDateString()} → {r.end_date ? new Date(r.end_date).toLocaleDateString() : '—'}</div>}
                   {r.shift_count != null && <div style={s.meta}>{r.shift_count} shifts</div>}
                   <div style={s.cardFooter}>
                     {r.status !== 'published' && (
@@ -229,13 +229,15 @@ export default function RosterPage() {
                   {stores.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
                 </select>
               </div>
-              <div style={s.fieldGroup}>
-                <label style={s.label}>Week Start Date</label>
-                <input type="date" style={INPUT} value={rForm.week_start} onChange={(e) => setRForm(f => ({ ...f, week_start: e.target.value }))} />
-              </div>
-              <div style={s.fieldGroup}>
-                <label style={s.label}>Notes</label>
-                <input style={INPUT} value={rForm.notes} onChange={(e) => setRForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={s.label}>Start Date *</label>
+                  <input type="date" style={INPUT} value={rForm.start_date} onChange={(e) => setRForm(f => ({ ...f, start_date: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={s.label}>End Date *</label>
+                  <input type="date" style={INPUT} value={rForm.end_date} onChange={(e) => setRForm(f => ({ ...f, end_date: e.target.value }))} />
+                </div>
               </div>
               <div style={s.modalActions}>
                 <button type="submit" style={s.submitBtn} disabled={createRoster.isPending}>
