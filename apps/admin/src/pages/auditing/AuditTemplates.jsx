@@ -14,6 +14,17 @@ export default function AuditTemplates() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [deletingId, setDeletingId] = useState(null)
+  const [togglingId, setTogglingId] = useState(null)
+
+  const handleTogglePublish = async (t) => {
+    const newStatus = t.status === 'published' ? 'draft' : 'published'
+    setTogglingId(t.id)
+    try {
+      await client.put(`/auditing/templates/${t.id}`, { ...t, status: newStatus })
+      queryClient.invalidateQueries({ queryKey: ['audit-templates'] })
+    } catch { alert('Failed to update template.') }
+    finally { setTogglingId(null) }
+  }
 
   const handleDelete = async (t) => {
     if (!window.confirm(`Delete template "${t.name}"? This cannot be undone.`)) return
@@ -86,6 +97,26 @@ export default function AuditTemplates() {
       fontWeight: 700,
       cursor: 'pointer',
     },
+    publishBtn: {
+      padding: '6px 12px',
+      background: 'transparent',
+      color: colors.success || '#10B981',
+      border: `1.5px solid ${colors.success || '#10B981'}`,
+      borderRadius: 7,
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: 'pointer',
+    },
+    unpublishBtn: {
+      padding: '6px 12px',
+      background: 'transparent',
+      color: colors.warning || '#F59E0B',
+      border: `1.5px solid ${colors.warning || '#F59E0B'}`,
+      borderRadius: 7,
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: 'pointer',
+    },
     empty: {
       textAlign: 'center',
       padding: '72px 0',
@@ -143,10 +174,17 @@ export default function AuditTemplates() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     style={s.deleteBtn}
-                    disabled={deletingId === t.id}
+                    disabled={deletingId === t.id || togglingId === t.id}
                     onClick={() => handleDelete(t)}
                   >
                     {deletingId === t.id ? '…' : 'Delete'}
+                  </button>
+                  <button
+                    style={t.status === 'published' ? s.unpublishBtn : s.publishBtn}
+                    disabled={togglingId === t.id || deletingId === t.id}
+                    onClick={() => handleTogglePublish(t)}
+                  >
+                    {togglingId === t.id ? '…' : t.status === 'published' ? 'Unpublish' : 'Publish'}
                   </button>
                   <button
                     style={s.editBtn}
