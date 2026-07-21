@@ -267,7 +267,9 @@ function UserRow({ user, onEdit }) {
 
       {/* Store */}
       <td style={s.td}>
-        <span style={{ color: colors.darkGrey }}>{user.store_name || '—'}</span>
+        <span style={{ color: colors.darkGrey }}>
+          {user.store_names?.length ? user.store_names.join(', ') : (user.store_name || '—')}
+        </span>
       </td>
 
       {/* Actions */}

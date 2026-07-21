@@ -19,9 +19,7 @@ exports.list = async (req, res) => {
       `SELECT u.id, u.email, u.name, u.phone, u.avatar_url, u.status,
               u.last_active_at, u.created_at, r.name as role_name,
               ARRAY(SELECT store_id FROM user_stores WHERE user_id = u.id) as store_ids,
-              (SELECT s.name FROM stores s
-               JOIN user_stores us ON us.store_id = s.id
-               WHERE us.user_id = u.id LIMIT 1) as store_name
+              ARRAY(SELECT s.name FROM stores s JOIN user_stores us ON us.store_id = s.id WHERE us.user_id = u.id ORDER BY s.name) as store_names
        FROM users u LEFT JOIN roles r ON r.id = u.role_id
        ${where}
        ORDER BY u.created_at DESC
