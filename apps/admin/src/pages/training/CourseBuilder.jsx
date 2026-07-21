@@ -46,9 +46,9 @@ export default function CourseBuilder() {
     setTitle(c.title || '')
     setDescription(c.description || '')
     setCategory(c.category || '')
-    setPassMark(c.pass_mark ?? 70)
-    setDurationMinutes(c.duration_minutes ?? 30)
-    setStatus(c.status || 'draft')
+    setPassMark(c.pass_mark ?? c.pass_score ?? 70)
+    setDurationMinutes(c.duration_minutes ?? c.duration_mins ?? 30)
+    setStatus(c.status || (c.is_active ? 'published' : 'draft'))
     setModules(
       c.modules?.length
         ? c.modules.map((m) => ({
