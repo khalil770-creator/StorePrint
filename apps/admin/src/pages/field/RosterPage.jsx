@@ -32,7 +32,7 @@ export default function RosterPage() {
   const emptyRoster = { name: '', store_id: '', start_date: '', end_date: '' }
   const [rForm, setRForm] = useState(emptyRoster)
 
-  const emptyShift = { roster_id: '', user_id: '', date: '', start_time: '', end_time: '', role: '', zone: '' }
+  const emptyShift = { roster_id: '', store_id: '', user_id: '', date: '', start_time: '', end_time: '', role_label: '', zone: '' }
   const [sForm, setSForm] = useState(emptyShift)
 
   const { data: rawRosters, isLoading: loadingRosters } = useQuery({
@@ -74,7 +74,7 @@ export default function RosterPage() {
   })
 
   const createShift = useMutation({
-    mutationFn: (p) => client.post('/field/shifts', p),
+    mutationFn: (p) => client.post('/field/shifts', { ...p, store_id: selectedRoster?.store_id }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts', selectedRoster?.id] }); setShowShiftModal(false); setSForm(emptyShift) },
     onError: () => alert('Failed to create shift.'),
   })
@@ -122,7 +122,7 @@ export default function RosterPage() {
         onBack={false}
         actions={
           selectedRoster
-            ? <button style={s.createBtn} onClick={() => { setSForm({ ...emptyShift, roster_id: selectedRoster.id }); setShowShiftModal(true) }}>+ Add Shift</button>
+            ? <button style={s.createBtn} onClick={() => { setSForm({ ...emptyShift, roster_id: selectedRoster.id, store_id: selectedRoster.store_id }); setShowShiftModal(true) }}>+ Add Shift</button>
             : tab === 'rosters' && <button style={s.createBtn} onClick={() => setShowRosterModal(true)}>+ New Roster</button>
         }
       />
@@ -279,7 +279,7 @@ export default function RosterPage() {
               </div>
               <div style={s.fieldGroup}>
                 <label style={s.label}>Role</label>
-                <input style={INPUT} value={sForm.role} onChange={(e) => setSForm(f => ({ ...f, role: e.target.value }))} placeholder="e.g. Sales Associate" />
+                <input style={INPUT} value={sForm.role_label} onChange={(e) => setSForm(f => ({ ...f, role_label: e.target.value }))} placeholder="e.g. Sales Associate" />
               </div>
               <div style={s.fieldGroup}>
                 <label style={s.label}>Zone</label>
