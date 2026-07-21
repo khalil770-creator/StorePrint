@@ -25,6 +25,8 @@ import BrandHubPage      from './pages/brand-hub/BrandHubPage'
 import CampaignsList     from './pages/campaigns/CampaignsList'
 import CampaignBuilder   from './pages/campaigns/CampaignBuilder'
 import VMPage            from './pages/vm/VMPage'
+import RosterPage        from './pages/field/RosterPage'
+import FieldAttendancePage from './pages/field/FieldAttendancePage'
 import SignagePage       from './pages/signage/SignagePage'
 import SettingsPage      from './pages/system/Settings'
 
@@ -71,6 +73,8 @@ export default function App() {
             <Route path="campaigns/new" element={<CampaignBuilder />} />
             <Route path="campaigns/:id" element={<CampaignBuilder />} />
             <Route path="vm" element={<VMPage />} />
+            <Route path="roster" element={<RosterPage />} />
+            <Route path="field-attendance" element={<FieldAttendancePage />} />
             <Route path="signage" element={<SignagePage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
