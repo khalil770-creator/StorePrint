@@ -312,6 +312,16 @@ exports.createShift = async (req, res) => {
       [roster_id, req.user.brand_id]
     );
     if (!rosterCheck.length) return res.status(404).json({ error: 'Roster not found' });
+    // Validate shift date is within roster period
+    const { rows: rosterDates } = await query(`SELECT start_date, end_date FROM roster_schedules WHERE id=$1`, [roster_id]);
+    if (rosterDates.length) {
+      const shiftDate = new Date(date);
+      const rStart = new Date(rosterDates[0].start_date);
+      const rEnd = new Date(rosterDates[0].end_date);
+      if (shiftDate < rStart || shiftDate > rEnd) {
+        return res.status(400).json({ error: `Shift date must be within roster period (${rosterDates[0].start_date} – ${rosterDates[0].end_date})` });
+      }
+    }
     // Verify assigned user belongs to this brand
     const { rows: userCheck } = await query(
       `SELECT id FROM users WHERE id=$1 AND brand_id=$2`,
