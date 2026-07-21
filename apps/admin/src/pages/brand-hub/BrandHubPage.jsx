@@ -6,12 +6,13 @@ import PageHeader from '../../components/PageHeader'
 
 function getData(res) { return res?.data?.data ?? res?.data ?? null }
 
-const ACCEPT = '.pdf,.zip,.doc,.docx,.ppt,.pptx,.psd,.ai,.eps,.svg,.png,.jpg,.jpeg,.gif,.webp'
+const ACCEPT = '.pdf,.zip,.doc,.docx,.ppt,.pptx,.psd,.ai,.eps,.svg,.png,.jpg,.jpeg,.gif,.webp,.mp4,.mov,.avi'
 
 const FILE_ICON = (ext) => {
   const m = { pdf:'📄', zip:'🗜️', doc:'📝', docx:'📝', ppt:'📊', pptx:'📊',
                psd:'🖼️', ai:'🎨', eps:'🎨', svg:'🎨',
-               png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', webp:'🖼️' }
+               png:'🖼️', jpg:'🖼️', jpeg:'🖼️', gif:'🖼️', webp:'🖼️',
+               mp4:'🎬', mov:'🎬', avi:'🎬' }
   return m[(ext||'').toLowerCase()] || '📁'
 }
 
@@ -86,7 +87,7 @@ function CategoryModal({ cat, onClose, onSaved }) {
 // ─── Upload Modal ─────────────────────────────────────────────
 function UploadModal({ categories, preselect, onClose, onSaved }) {
   const qc = useQueryClient()
-  const [tab, setTab] = useState('file')   // 'file' | 'link'
+  const [tab, setTab] = useState('file')
   const [file, setFile] = useState(null)
   const [form, setForm] = useState({ name:'', description:'', category_id: preselect||'', tags:'', file_url:'' })
   const [err, setErr] = useState('')
@@ -98,13 +99,13 @@ function UploadModal({ categories, preselect, onClose, onSaved }) {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (e) => setProgress(Math.round(e.loaded / e.total * 100)),
     }).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bh-assets'] }); onSaved() },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bh-assets'] }); qc.invalidateQueries({ queryKey: ['bh-categories'] }); onSaved() },
     onError: (e) => setErr(e.response?.data?.error || 'Upload failed'),
   })
 
   const linkMut = useMutation({
     mutationFn: (body) => client.post('/brand-hub/assets/link', body).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bh-assets'] }); onSaved() },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['bh-assets'] }); qc.invalidateQueries({ queryKey: ['bh-categories'] }); onSaved() },
     onError: (e) => setErr(e.response?.data?.error || 'Failed to add link'),
   })
 
@@ -150,14 +151,10 @@ function UploadModal({ categories, preselect, onClose, onSaved }) {
       <div style={s.modal}>
         <div style={s.title}>Add Asset</div>
         {err && <div style={s.err}>⚠️ {err}</div>}
-
-        {/* Tabs */}
         <div style={s.tabs}>
           <button style={s.tab(tab==='file')} onClick={() => setTab('file')}>📤 Upload File</button>
           <button style={s.tab(tab==='link')} onClick={() => setTab('link')}>🔗 Add Link</button>
         </div>
-
-        {/* File upload */}
         {tab === 'file' && (
           <>
             <div style={s.dropzone} onClick={() => inputRef.current?.click()}
@@ -172,31 +169,23 @@ function UploadModal({ categories, preselect, onClose, onSaved }) {
             {isPending && <div style={s.progBar}><div style={{...s.progFill, width:`${progress}%`}} /></div>}
           </>
         )}
-
-        {/* Link */}
         {tab === 'link' && (
           <>
             <label style={s.label}>External URL *</label>
             <input style={s.input} placeholder="https://drive.google.com/file/..." value={form.file_url} onChange={e => setForm(p => ({...p, file_url: e.target.value}))} />
           </>
         )}
-
-        {/* Common fields */}
         <label style={s.label}>Display Name {tab==='link' && '*'}</label>
         <input style={s.input} value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))} placeholder={tab==='file' ? 'Leave blank to use filename' : 'e.g. Brand Guidelines 2024'} />
-
         <label style={s.label}>Description</label>
         <input style={s.input} value={form.description} onChange={e => setForm(p => ({...p, description: e.target.value}))} placeholder="Optional" />
-
         <label style={s.label}>Category</label>
         <select style={{...s.input, appearance:'none'}} value={form.category_id} onChange={e => setForm(p => ({...p, category_id: e.target.value}))}>
           <option value="">— Uncategorised —</option>
           {(categories||[]).map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
         </select>
-
         <label style={s.label}>Tags (comma-separated)</label>
         <input style={s.input} value={form.tags} onChange={e => setForm(p => ({...p, tags: e.target.value}))} placeholder="e.g. logo, green, horizontal" />
-
         <div style={s.actions}>
           <button style={{...s.btn, background:'transparent', color:colors.midGrey, border:`1.5px solid ${colors.border}`}} onClick={onClose}>Cancel</button>
           <button style={{...s.btn, background:colors.primary, color:'#fff', opacity: isPending?0.6:1}} disabled={isPending} onClick={handleSubmit}>
@@ -211,11 +200,11 @@ function UploadModal({ categories, preselect, onClose, onSaved }) {
 // ─── Main Page ────────────────────────────────────────────────
 export default function BrandHubPage() {
   const qc = useQueryClient()
-  const [activeCat, setActiveCat]     = useState(null)  // null = All
-  const [showCatModal, setShowCatModal] = useState(null) // null|false|catObj
-  const [showUpload, setShowUpload]   = useState(false)
-  const [search, setSearch]           = useState('')
-  const [deleteId, setDeleteId]       = useState(null)
+  const [activeCat, setActiveCat]       = useState(null)
+  const [showCatModal, setShowCatModal] = useState(null)
+  const [showUpload, setShowUpload]     = useState(false)
+  const [search, setSearch]             = useState('')
+  const [hoveredCat, setHoveredCat]     = useState(null)
 
   const { data: catsRaw, isLoading: loadingCats } = useQuery({
     queryKey: ['bh-categories'],
@@ -229,9 +218,11 @@ export default function BrandHubPage() {
   })
   const assets = assetsRaw?.data?.data || assetsRaw?.data || []
 
+  const totalCount = cats.reduce((sum, c) => sum + (c.asset_count || 0), 0)
+
   const deleteMut = useMutation({
     mutationFn: (id) => client.delete(`/brand-hub/assets/${id}`),
-    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['bh-assets'] }); qc.invalidateQueries({ queryKey: ['bh-categories'] }); setDeleteId(null) },
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['bh-assets'] }); qc.invalidateQueries({ queryKey: ['bh-categories'] }) },
   })
 
   const deleteCatMut = useMutation({
@@ -246,32 +237,40 @@ export default function BrandHubPage() {
     } catch { window.alert('Download failed') }
   }
 
+  const activeCatObj = cats.find(c => c.id === activeCat)
+
   const s = {
     page:      { padding:'32px 40px', background:colors.background, minHeight:'100vh' },
     layout:    { display:'flex', gap:24, marginTop:24 },
-    sidebar:   { width:220, flexShrink:0 },
+    sidebar:   { width:230, flexShrink:0 },
     catHead:   { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 },
     catLabel:  { fontSize:11, fontWeight:700, color:colors.midGrey, textTransform:'uppercase', letterSpacing:0.8 },
-    addCatBtn: { fontSize:18, cursor:'pointer', color:colors.primary, lineHeight:1 },
-    catItem:   (active) => ({ display:'flex', alignItems:'center', gap:8, padding:'9px 12px', borderRadius:8, cursor:'pointer', marginBottom:4, background: active ? colors.primary+'15' : 'transparent', border: active ? `1.5px solid ${colors.primary}` : '1.5px solid transparent', fontWeight: active ? 700 : 500, color: active ? colors.primary : colors.dark, fontSize:13 }),
-    catCount:  { marginLeft:'auto', fontSize:11, color:colors.midGrey },
-    catEdit:   { fontSize:11, color:colors.midGrey, cursor:'pointer', marginLeft:4, opacity:0 },
-    main:      { flex:1 },
+    addCatBtn: { width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, background:colors.primary+'15', color:colors.primary, cursor:'pointer', fontSize:16, fontWeight:700, border:'none' },
+    catItem:   (active) => ({ display:'flex', alignItems:'center', gap:8, padding:'9px 12px', borderRadius:8, cursor:'pointer', marginBottom:3, background: active ? colors.primary+'15' : 'transparent', border: active ? `1.5px solid ${colors.primary}` : '1.5px solid transparent', fontWeight: active ? 700 : 500, color: active ? colors.primary : colors.dark, fontSize:13, transition:'background 0.15s' }),
+    catCount:  { marginLeft:'auto', fontSize:11, fontWeight:600, color:colors.midGrey, background:colors.background, padding:'1px 7px', borderRadius:10 },
+    catActions:{ display:'flex', gap:4, marginLeft:4 },
+    catActionBtn:(color)=> ({ fontSize:11, background:'none', border:'none', cursor:'pointer', color:color, padding:'2px 4px', borderRadius:4 }),
+    divider:   { height:1, background:colors.border, margin:'10px 0' },
+    deleteCatBtn:{ width:'100%', padding:'7px 0', fontSize:12, fontWeight:600, color:'#DC2626', background:'transparent', border:`1px solid #FECACA`, borderRadius:6, cursor:'pointer', marginTop:6, transition:'background 0.15s' },
+    main:      { flex:1, minWidth:0 },
     toolbar:   { display:'flex', gap:10, marginBottom:16, alignItems:'center' },
-    search:    { flex:1, padding:'9px 14px', border:`1.5px solid ${colors.border}`, borderRadius:8, fontSize:13, outline:'none', color:colors.dark },
-    uploadBtn: { padding:'9px 18px', background:colors.primary, color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer' },
-    table:     { width:'100%', borderCollapse:'collapse', background:colors.white, borderRadius:12, overflow:'hidden', boxShadow:shadow.sm, border:`1px solid ${colors.border}` },
-    th:        { padding:'11px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:colors.midGrey, background:colors.background, borderBottom:`1px solid ${colors.border}`, textTransform:'uppercase', letterSpacing:0.6 },
+    search:    { flex:1, padding:'9px 14px', border:`1.5px solid ${colors.border}`, borderRadius:8, fontSize:13, outline:'none', color:colors.dark, background:colors.white },
+    uploadBtn: { padding:'9px 18px', background:colors.primary, color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' },
+    tableWrap: { overflowX:'auto', borderRadius:12, boxShadow:shadow.sm, border:`1px solid ${colors.border}` },
+    table:     { width:'100%', borderCollapse:'collapse', background:colors.white, minWidth:600 },
+    th:        { padding:'11px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:colors.midGrey, background:colors.background, borderBottom:`1px solid ${colors.border}`, textTransform:'uppercase', letterSpacing:0.6, whiteSpace:'nowrap' },
     td:        { padding:'11px 14px', fontSize:13, color:colors.dark, borderBottom:`1px solid ${colors.border}`, verticalAlign:'middle' },
-    nameCell:  { display:'flex', alignItems:'center', gap:8 },
-    iconBox:   { fontSize:20, width:34, height:34, background:colors.background, borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
-    fileName:  { fontWeight:600, color:colors.dark, fontSize:13 },
-    fileSub:   { fontSize:11, color:colors.midGrey, marginTop:1 },
-    sourceBadge:(s)=> ({ display:'inline-block', padding:'2px 7px', borderRadius:10, fontSize:10, fontWeight:700, background: s==='link' ? '#EEF4FF' : '#F0F8EA', color: s==='link' ? '#1E40AF' : '#2E7D32' }),
-    actionBtn: { padding:'5px 10px', fontSize:11, fontWeight:700, borderRadius:6, border:`1px solid ${colors.border}`, background:colors.white, cursor:'pointer', marginRight:4 },
-    delBtn:    { padding:'5px 10px', fontSize:11, fontWeight:700, borderRadius:6, border:'1px solid #FECACA', background:'#FFF0F0', color:'#DC2626', cursor:'pointer' },
-    empty:     { textAlign:'center', padding:'48px 0', color:colors.lightGrey, fontSize:14 },
-    loading:   { padding:'24px 0', color:colors.midGrey, fontSize:13 },
+    nameCell:  { display:'flex', alignItems:'center', gap:10 },
+    iconBox:   { fontSize:20, width:36, height:36, background:colors.background, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, border:`1px solid ${colors.border}` },
+    fileName:  { fontWeight:600, color:colors.dark, fontSize:13, maxWidth:260, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
+    fileSub:   { fontSize:11, color:colors.midGrey, marginTop:1, maxWidth:260, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
+    catBadge:  (color) => ({ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 8px', borderRadius:10, fontSize:11, fontWeight:600, background:(color||'#0052CC')+'18', color:(color||'#0052CC') }),
+    sourceBadge:(src)=> ({ display:'inline-block', padding:'3px 8px', borderRadius:10, fontSize:11, fontWeight:700, background: src==='link' ? '#EEF4FF' : '#F0FFF4', color: src==='link' ? '#1E40AF' : '#166534' }),
+    actionCell:{ display:'flex', gap:6, alignItems:'center' },
+    actionBtn: { padding:'5px 12px', fontSize:11, fontWeight:700, borderRadius:6, border:`1px solid ${colors.border}`, background:colors.white, cursor:'pointer', color:colors.dark },
+    delBtn:    { padding:'5px 10px', fontSize:13, borderRadius:6, border:'1px solid #FECACA', background:'#FFF5F5', color:'#DC2626', cursor:'pointer' },
+    empty:     { textAlign:'center', padding:'64px 0', color:colors.lightGrey, fontSize:14 },
+    loading:   { padding:'24px 0', color:colors.midGrey, fontSize:13, textAlign:'center' },
   }
 
   return (
@@ -301,96 +300,129 @@ export default function BrandHubPage() {
       )}
 
       <div style={s.layout}>
-        {/* Sidebar — categories */}
+        {/* Sidebar */}
         <aside style={s.sidebar}>
           <div style={s.catHead}>
             <span style={s.catLabel}>Categories</span>
-            <span style={s.addCatBtn} title="New category" onClick={() => setShowCatModal(false)}>＋</span>
+            <button style={s.addCatBtn} title="New category" onClick={() => setShowCatModal(false)}>+</button>
           </div>
 
-          {/* All */}
           <div style={s.catItem(!activeCat)} onClick={() => setActiveCat(null)}>
-            <span>📦</span> All Assets
-            <span style={s.catCount}>{assets.length}</span>
+            <span>📦</span>
+            <span style={{ flex:1 }}>All Assets</span>
+            <span style={s.catCount}>{totalCount}</span>
           </div>
 
-          {loadingCats && <div style={s.loading}>Loading…</div>}
+          {loadingCats && <div style={{ padding:'8px 12px', fontSize:12, color:colors.midGrey }}>Loading…</div>}
+
+          {cats.length > 0 && <div style={s.divider} />}
 
           {cats.map(cat => (
-            <div key={cat.id} style={{ position:'relative' }}
-              onMouseEnter={e => { const btn = e.currentTarget.querySelector('[data-edit]'); if (btn) btn.style.opacity = 1 }}
-              onMouseLeave={e => { const btn = e.currentTarget.querySelector('[data-edit]'); if (btn) btn.style.opacity = 0 }}>
+            <div key={cat.id}
+              style={{ position:'relative' }}
+              onMouseEnter={() => setHoveredCat(cat.id)}
+              onMouseLeave={() => setHoveredCat(null)}>
               <div style={s.catItem(activeCat === cat.id)} onClick={() => setActiveCat(cat.id)}>
                 <span>{cat.icon}</span>
                 <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cat.name}</span>
                 <span style={s.catCount}>{cat.asset_count}</span>
-                <span data-edit style={s.catEdit} onClick={e => { e.stopPropagation(); setShowCatModal(cat) }}>✏️</span>
+                {hoveredCat === cat.id && (
+                  <div style={s.catActions} onClick={e => e.stopPropagation()}>
+                    <button style={s.catActionBtn(colors.midGrey)} title="Edit" onClick={() => setShowCatModal(cat)}>✏️</button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
 
-          {activeCat && cats.find(c => c.id === activeCat) && (
-            <button style={{ marginTop:8, width:'100%', padding:'6px 0', fontSize:11, fontWeight:700, color:'#DC2626', background:'transparent', border:`1px solid #FECACA`, borderRadius:6, cursor:'pointer' }}
-              onClick={() => { if (window.confirm('Delete this category? Assets will be uncategorised.')) deleteCatMut.mutate(activeCat) }}>
-              🗑 Delete Category
-            </button>
+          {activeCat && activeCatObj && (
+            <>
+              <div style={s.divider} />
+              <button
+                style={s.deleteCatBtn}
+                onMouseEnter={e => e.currentTarget.style.background = '#FFF5F5'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                onClick={() => { if (window.confirm('Delete this category? Assets will be uncategorised.')) deleteCatMut.mutate(activeCat) }}>
+                🗑 Delete "{activeCatObj.name}"
+              </button>
+            </>
           )}
         </aside>
 
-        {/* Main — assets table */}
+        {/* Main content */}
         <div style={s.main}>
           <div style={s.toolbar}>
-            <input style={s.search} placeholder="Search assets…" value={search} onChange={e => setSearch(e.target.value)} />
-            <button style={s.uploadBtn} onClick={() => setShowUpload(true)}>+ Add</button>
+            <input
+              style={s.search}
+              placeholder="Search assets…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            <button style={s.uploadBtn} onClick={() => setShowUpload(true)}>+ Add Asset</button>
           </div>
 
           {loadingAssets && <div style={s.loading}>Loading assets…</div>}
 
           {!loadingAssets && assets.length === 0 && (
             <div style={s.empty}>
-              <div style={{ fontSize:36, marginBottom:12 }}>📂</div>
-              No assets yet. Click <strong>+ Add</strong> to upload a file or add a link.
+              <div style={{ fontSize:40, marginBottom:12 }}>📂</div>
+              <div style={{ fontWeight:600, color:colors.darkGrey, marginBottom:6 }}>No assets yet</div>
+              <div>Click <strong>+ Add Asset</strong> to upload a file or add a link.</div>
             </div>
           )}
 
           {assets.length > 0 && (
-            <table style={s.table}>
-              <thead>
-                <tr>
-                  <th style={s.th}>File</th>
-                  <th style={s.th}>Category</th>
-                  <th style={s.th}>Size</th>
-                  <th style={s.th}>Source</th>
-                  <th style={s.th}>Downloads</th>
-                  <th style={s.th}>Uploaded</th>
-                  <th style={s.th}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assets.map(a => (
-                  <tr key={a.id}>
-                    <td style={s.td}>
-                      <div style={s.nameCell}>
-                        <div style={s.iconBox}>{FILE_ICON(a.extension)}</div>
-                        <div>
-                          <div style={s.fileName}>{a.name}</div>
-                          <div style={s.fileSub}>{a.file_name} {a.extension && `· .${a.extension.toUpperCase()}`}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={s.td}>{a.category_icon} {a.category_name || <span style={{ color:colors.lightGrey }}>—</span>}</td>
-                    <td style={s.td}>{fmtBytes(a.file_size)}</td>
-                    <td style={s.td}><span style={s.sourceBadge(a.source)}>{a.source === 'link' ? '🔗 Link' : '📤 Upload'}</span></td>
-                    <td style={s.td}>{a.download_count}</td>
-                    <td style={s.td}>{a.created_at ? new Date(a.created_at).toLocaleDateString() : '—'}</td>
-                    <td style={s.td}>
-                      <button style={s.actionBtn} onClick={() => handleDownload(a)}>↓ {a.source === 'link' ? 'Open' : 'Download'}</button>
-                      <button style={s.delBtn} onClick={() => { if (window.confirm(`Delete "${a.name}"?`)) deleteMut.mutate(a.id) }}>🗑</button>
-                    </td>
+            <div style={s.tableWrap}>
+              <table style={s.table}>
+                <thead>
+                  <tr>
+                    <th style={s.th}>File</th>
+                    {!activeCat && <th style={s.th}>Category</th>}
+                    <th style={s.th}>Size</th>
+                    <th style={s.th}>Source</th>
+                    <th style={s.th}>Downloads</th>
+                    <th style={s.th}>Uploaded</th>
+                    <th style={s.th}>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {assets.map(a => (
+                    <tr key={a.id} style={{ transition:'background 0.1s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = colors.background}
+                      onMouseLeave={e => e.currentTarget.style.background = ''}>
+                      <td style={{ ...s.td, maxWidth:300 }}>
+                        <div style={s.nameCell}>
+                          <div style={s.iconBox}>{FILE_ICON(a.extension)}</div>
+                          <div style={{ minWidth:0 }}>
+                            <div style={s.fileName} title={a.name}>{a.name}</div>
+                            <div style={s.fileSub}>{a.extension && `.${a.extension.toUpperCase()}`}</div>
+                          </div>
+                        </div>
+                      </td>
+                      {!activeCat && (
+                        <td style={s.td}>
+                          {a.category_name
+                            ? <span style={s.catBadge(a.category_color)}>{a.category_icon} {a.category_name}</span>
+                            : <span style={{ color:colors.lightGrey }}>—</span>}
+                        </td>
+                      )}
+                      <td style={s.td}>{fmtBytes(a.file_size)}</td>
+                      <td style={s.td}><span style={s.sourceBadge(a.source)}>{a.source === 'link' ? '🔗 Link' : '📤 Upload'}</span></td>
+                      <td style={{ ...s.td, textAlign:'center' }}>{a.download_count ?? 0}</td>
+                      <td style={s.td}>{a.created_at ? new Date(a.created_at).toLocaleDateString() : '—'}</td>
+                      <td style={s.td}>
+                        <div style={s.actionCell}>
+                          <button style={s.actionBtn} onClick={() => handleDownload(a)}>
+                            {a.source === 'link' ? '↗ Open' : '↓ Download'}
+                          </button>
+                          <button style={s.delBtn} title="Delete" onClick={() => { if (window.confirm(`Delete "${a.name}"?`)) deleteMut.mutate(a.id) }}>🗑</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
