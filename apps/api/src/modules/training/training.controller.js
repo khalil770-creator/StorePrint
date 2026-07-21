@@ -30,14 +30,28 @@ exports.listCourses = async (req, res) => {
 
 exports.createCourse = async (req, res) => {
   try {
-    const { title, description, category, duration_mins, pass_score, thumbnail_url } = req.body;
+    const { title, description, category, thumbnail_url, modules = [],
+      duration_mins, duration_minutes, pass_score, pass_mark } = req.body;
+    const durMins  = duration_mins  || duration_minutes  || null;
+    const passScore = pass_score || pass_mark || 80;
     const { rows } = await query(
       `INSERT INTO training_courses(brand_id, title, description, category, duration_mins, pass_score, thumbnail_url, created_by)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [req.user.brand_id, title, description || null, category || null,
-       duration_mins || null, pass_score || 80, thumbnail_url || null, req.user.id]
+       durMins, passScore, thumbnail_url || null, req.user.id]
     );
-    res.status(201).json(rows[0]);
+    const course = rows[0];
+    const insertedModules = [];
+    for (const [i, m] of modules.entries()) {
+      if (!m.title?.trim()) continue;
+      const { rows: mr } = await query(
+        `INSERT INTO training_modules(course_id, title, content_type, order_index, has_quiz)
+         VALUES($1,$2,$3,$4,$5) RETURNING *`,
+        [course.id, m.title.trim(), m.content_type || 'video', i, m.has_quiz || false]
+      );
+      insertedModules.push(mr[0]);
+    }
+    res.status(201).json({ ...course, modules: insertedModules });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to create course' }); }
 };
 
@@ -82,17 +96,45 @@ exports.getCourse = async (req, res) => {
 
 exports.updateCourse = async (req, res) => {
   try {
-    const { title, description, category, duration_mins, pass_score, thumbnail_url } = req.body;
+    const { title, description, category, thumbnail_url, modules,
+      duration_mins, duration_minutes, pass_score, pass_mark } = req.body;
+    const durMins   = duration_mins  || duration_minutes  || null;
+    const passScore = pass_score || pass_mark || 80;
     const { rows } = await query(
       `UPDATE training_courses SET title=$1, description=$2, category=$3,
          duration_mins=$4, pass_score=$5, thumbnail_url=$6, updated_at=NOW()
        WHERE id=$7 AND brand_id=$8 RETURNING *`,
-      [title, description || null, category || null, duration_mins || null,
-       pass_score || 80, thumbnail_url || null, req.params.id, req.user.brand_id]
+      [title, description || null, category || null, durMins,
+       passScore, thumbnail_url || null, req.params.id, req.user.brand_id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Course not found' });
+
+    if (Array.isArray(modules)) {
+      await query(`DELETE FROM training_modules WHERE course_id=$1`, [req.params.id]);
+      for (const [i, m] of modules.entries()) {
+        if (!m.title?.trim()) continue;
+        await query(
+          `INSERT INTO training_modules(course_id, title, content_type, order_index, has_quiz)
+           VALUES($1,$2,$3,$4,$5)`,
+          [req.params.id, m.title.trim(), m.content_type || 'video', i, m.has_quiz || false]
+        );
+      }
+    }
     res.json(rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to update course' }); }
+};
+
+exports.deleteCourse = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT id FROM training_courses WHERE id=$1 AND brand_id=$2`,
+      [req.params.id, req.user.brand_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Course not found' });
+    await query(`DELETE FROM training_modules WHERE course_id=$1`, [req.params.id]);
+    await query(`DELETE FROM training_courses WHERE id=$1 AND brand_id=$2`, [req.params.id, req.user.brand_id]);
+    res.json({ message: 'Course deleted' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to delete course' }); }
 };
 
 // ── Publish Course ────────────────────────────────────────────

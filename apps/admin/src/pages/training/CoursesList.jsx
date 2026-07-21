@@ -1,6 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import client from '../../api/client'
 import { colors, shadow } from '../../theme'
 import Badge from '../../components/Badge'
@@ -38,6 +38,18 @@ function CategoryChip({ category }) {
 
 export default function CoursesList() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [deletingId, setDeletingId] = useState(null)
+
+  const handleDelete = async (c) => {
+    if (!window.confirm(`Delete course "${c.title}"? This cannot be undone.`)) return
+    setDeletingId(c.id)
+    try {
+      await client.delete(`/training/courses/${c.id}`)
+      queryClient.invalidateQueries({ queryKey: ['training-courses'] })
+    } catch { alert('Failed to delete course.') }
+    finally { setDeletingId(null) }
+  }
 
   const { data: raw, isLoading, error } = useQuery({
     queryKey: ['training-courses'],
@@ -92,6 +104,16 @@ export default function CoursesList() {
       background: colors.primaryBg,
       color: colors.primary,
       border: `1.5px solid ${colors.primary}`,
+      borderRadius: 7,
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: 'pointer',
+    },
+    deleteBtn: {
+      padding: '6px 12px',
+      background: 'transparent',
+      color: colors.error || '#EF4444',
+      border: `1.5px solid ${colors.error || '#EF4444'}`,
       borderRadius: 7,
       fontSize: 12,
       fontWeight: 700,
@@ -159,12 +181,21 @@ export default function CoursesList() {
                 <span style={s.meta}>
                   {c.created_at ? new Date(c.created_at).toLocaleDateString() : ''}
                 </span>
-                <button
-                  style={s.editBtn}
-                  onClick={() => navigate(`/admin/courses/${c.id ?? c._id}`)}
-                >
-                  Edit
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    style={s.deleteBtn}
+                    disabled={deletingId === c.id}
+                    onClick={() => handleDelete(c)}
+                  >
+                    {deletingId === c.id ? '…' : 'Delete'}
+                  </button>
+                  <button
+                    style={s.editBtn}
+                    onClick={() => navigate(`/admin/courses/${c.id ?? c._id}`)}
+                  >
+                    Edit
+                  </button>
+                </div>
               </div>
             </div>
           ))}

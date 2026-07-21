@@ -10,6 +10,7 @@ router.get('/my-courses',                              requirePermission('traini
 router.get('/certifications',                          requirePermission('training', 'read'),   ctrl.listCertifications);
 router.get('/:id',                                     requirePermission('training', 'read'),   ctrl.getCourse);
 router.put('/:id',                                     requirePermission('training', 'update'), ctrl.updateCourse);
+router.delete('/:id',                                  requirePermission('training', 'delete'), ctrl.deleteCourse);
 router.post('/:id/publish',                            requirePermission('training', 'update'), ctrl.publishCourse);
 router.get('/:id/modules',                             requirePermission('training', 'read'),   ctrl.listModules);
 router.post('/:id/modules',                            requirePermission('training', 'update'), ctrl.addModule);
