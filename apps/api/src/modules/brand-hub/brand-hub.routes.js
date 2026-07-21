@@ -17,8 +17,9 @@ const upload = multer({
       'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       'application/octet-stream',   // PSD / AI / generic
       'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+      'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-ms-wmv', 'video/webm',
     ];
-    if (allowed.includes(file.mimetype) || file.originalname.match(/\.(psd|ai|eps|svg|zip|doc|docx|pdf|png|jpg|jpeg|gif|webp)$/i)) {
+    if (allowed.includes(file.mimetype) || file.originalname.match(/\.(psd|ai|eps|svg|zip|doc|docx|pdf|png|jpg|jpeg|gif|webp|mp4|mov|avi|wmv|webm)$/i)) {
       cb(null, true);
     } else {
       cb(new Error('File type not allowed'));
