@@ -10,15 +10,10 @@ exports.listCampaigns = async (req, res) => {
     if (status)   { params.push(status);   where += ` AND c.status=$${params.length}`; }
     if (brand_id) { params.push(brand_id); where += ` AND c.brand_id=$${params.length}`; }
     const { rows } = await query(
-      `SELECT c.*, u.name as created_by_name,
-              COUNT(DISTINCT csa.id) as store_count,
-              COUNT(DISTINCT cc.id)  as confirmed_count
+      `SELECT c.*, u.name as created_by_name
        FROM campaigns c
        LEFT JOIN users u ON u.id = c.created_by
-       LEFT JOIN campaign_store_assignments csa ON csa.campaign_id = c.id
-       LEFT JOIN campaign_confirmations cc ON cc.campaign_id = c.id
        ${where}
-       GROUP BY c.id, u.name
        ORDER BY c.created_at DESC`,
       params
     );
