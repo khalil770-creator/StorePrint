@@ -59,6 +59,7 @@ export default function EnvBuilder() {
         : client.put(`/environment/checklists/${id}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['env-checklists'] })
+      if (!isNew) qc.invalidateQueries({ queryKey: ['env-checklist', id] })
       window.alert(isNew ? 'Checklist created!' : 'Checklist updated!')
       navigate('/admin/env-checklists')
     },
@@ -141,7 +142,7 @@ export default function EnvBuilder() {
     }),
     itemRow: {
       display: 'grid',
-      gridTemplateColumns: '1fr auto auto auto auto',
+      gridTemplateColumns: '1fr 120px 110px 44px 32px',
       gap: 8,
       alignItems: 'center',
       marginBottom: 8,
@@ -165,6 +166,8 @@ export default function EnvBuilder() {
       outline: 'none',
       background: colors.white,
       cursor: 'pointer',
+      width: '100%',
+      boxSizing: 'border-box',
     },
     toggle: (on) => ({
       width: 36,
@@ -277,11 +280,11 @@ export default function EnvBuilder() {
           <div style={s.sectionTitle}>Checklist Items</div>
 
           {/* Column headers */}
-          <div style={{ ...s.itemRow, marginBottom: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: colors.lightGrey }}>Item</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: colors.lightGrey, textAlign: 'center' }}>Type</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: colors.lightGrey, textAlign: 'center' }}>Frequency</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: colors.lightGrey, textAlign: 'center' }}>Req.</span>
+          <div style={{ ...s.itemRow, marginBottom: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: colors.lightGrey, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Item</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: colors.lightGrey, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: colors.lightGrey, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Frequency</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: colors.lightGrey, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Req.</span>
             <span />
           </div>
 
