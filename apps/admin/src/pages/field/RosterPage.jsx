@@ -195,45 +195,74 @@ export default function RosterPage() {
       {selectedRoster && (
         <>
           <button style={s.backBtn} onClick={() => setSelectedRoster(null)}>← Back to Rosters</button>
-          <div style={{ marginBottom: 16, fontSize: 15, fontWeight: 700, color: colors.dark }}>
+          <div style={{ marginBottom: 20, fontSize: 15, fontWeight: 700, color: colors.dark }}>
             {selectedRoster.name} — Shifts
+            <span style={{ fontSize: 12, fontWeight: 400, color: colors.midGrey, marginLeft: 10 }}>
+              {shifts.length} shift{shifts.length !== 1 ? 's' : ''}
+            </span>
           </div>
           {loadingShifts && <div style={s.loadText}>Loading shifts…</div>}
           {!loadingShifts && shifts.length === 0 && (
             <div style={s.empty}>No shifts yet.<br />Click <strong>+ Add Shift</strong> to add one.</div>
           )}
           {shifts.length > 0 && (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={s.table}>
-                <thead>
-                  <tr>
-                    <th style={s.th}>Staff</th>
-                    <th style={s.th}>Date</th>
-                    <th style={s.th}>Start</th>
-                    <th style={s.th}>End</th>
-                    <th style={s.th}>Role</th>
-                    <th style={s.th}>Zone</th>
-                    <th style={s.th}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {shifts.map((sh) => (
-                    <tr key={sh.id}>
-                      <td style={{ ...s.td, fontWeight: 600 }}>{sh.user_name || '—'}</td>
-                      <td style={{ ...s.td, fontFamily: fonts.mono, fontSize: 12 }}>
-                        {sh.date ? new Date(sh.date).toLocaleDateString() : '—'}
-                      </td>
-                      <td style={{ ...s.td, fontFamily: fonts.mono, fontSize: 12 }}>{sh.start_time || '—'}</td>
-                      <td style={{ ...s.td, fontFamily: fonts.mono, fontSize: 12 }}>{sh.end_time || '—'}</td>
-                      <td style={s.td}>{sh.role || '—'}</td>
-                      <td style={s.td}>{sh.zone || '—'}</td>
-                      <td style={s.td}>
-                        <button style={s.deleteBtn} onClick={() => deleteShift(sh.id)}>Delete</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {Object.entries(
+                shifts.reduce((acc, sh) => {
+                  const key = sh.user_name || sh.user_id
+                  if (!acc[key]) acc[key] = []
+                  acc[key].push(sh)
+                  return acc
+                }, {})
+              ).map(([userName, staffShifts]) => {
+                // Consolidate consecutive shifts with same time/role/zone
+                const sorted = [...staffShifts].sort((a, b) => new Date(a.date) - new Date(b.date))
+                const blocks = []
+                sorted.forEach(sh => {
+                  const last = blocks[blocks.length - 1]
+                  const prev = last?.ids[last.ids.length - 1]
+                  const prevDate = prev ? new Date(last.to) : null
+                  const curDate = new Date(sh.date)
+                  const isConsec = prevDate && (curDate - prevDate) <= 86400000
+                  const sameSlot = last && last.start_time === sh.start_time && last.end_time === sh.end_time && last.role_label === sh.role_label && last.zone === sh.zone
+                  if (isConsec && sameSlot) {
+                    last.to = sh.date
+                    last.ids.push(sh.id)
+                    last.days++
+                  } else {
+                    blocks.push({ from: sh.date, to: sh.date, start_time: sh.start_time, end_time: sh.end_time, role_label: sh.role_label, zone: sh.zone, ids: [sh.id], days: 1 })
+                  }
+                })
+                const fmt = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'
+                return (
+                  <div key={userName} style={{ background: colors.white, borderRadius: 12, border: `1px solid ${colors.border}`, boxShadow: shadow.sm, overflow: 'hidden' }}>
+                    <div style={{ padding: '14px 20px', background: colors.surfaceLow || '#F9FAFB', borderBottom: `1px solid ${colors.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 800, fontSize: 14, color: colors.dark }}>👤 {userName}</span>
+                      <span style={{ fontSize: 12, color: colors.midGrey }}>{staffShifts.length} shift{staffShifts.length !== 1 ? 's' : ''} · {blocks.length} block{blocks.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div>
+                      {blocks.map((block, i) => (
+                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: 12, padding: '12px 20px', borderBottom: i < blocks.length - 1 ? `1px solid ${colors.border}` : 'none', alignItems: 'center' }}>
+                          <div>
+                            <span style={{ fontWeight: 600, fontSize: 13, color: colors.dark }}>
+                              {fmt(block.from)}{block.days > 1 ? ` → ${fmt(block.to)}` : ''}
+                            </span>
+                            {block.days > 1 && <span style={{ marginLeft: 8, fontSize: 11, background: colors.primaryBg, color: colors.primary, borderRadius: 99, padding: '1px 7px', fontWeight: 700 }}>{block.days} days</span>}
+                          </div>
+                          <div style={{ fontFamily: fonts.mono, fontSize: 12, color: colors.midGrey }}>
+                            {block.start_time?.slice(0,5)} – {block.end_time?.slice(0,5)}
+                          </div>
+                          <div style={{ fontSize: 12, color: colors.dark }}>{block.role_label || '—'}</div>
+                          <div style={{ fontSize: 12, color: colors.midGrey }}>{block.zone || '—'}</div>
+                          <button style={s.deleteBtn} onClick={() => { if (window.confirm(`Delete ${block.days} shift(s)?`)) block.ids.forEach(id => deleteShift(id)) }}>
+                            Delete
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </>
