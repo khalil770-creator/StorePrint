@@ -64,8 +64,7 @@ exports.getCampaign = async (req, res) => {
     if (!camp.length) return res.status(404).json({ error: 'Campaign not found' });
 
     const { rows: assets } = await query(
-      `SELECT ca.*, u.name as uploaded_by_name FROM campaign_assets ca
-       LEFT JOIN users u ON u.id = ca.uploaded_by
+      `SELECT ca.* FROM campaign_assets ca
        WHERE ca.campaign_id=$1 ORDER BY ca.created_at DESC`,
       [req.params.id]
     );
