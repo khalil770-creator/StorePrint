@@ -26,13 +26,16 @@ export default function RosterPage() {
   const [tab, setTab] = useState('rosters')
   const [showRosterModal, setShowRosterModal] = useState(false)
   const [showShiftModal, setShowShiftModal] = useState(false)
+  const [showCopyModal, setShowCopyModal] = useState(false)
+  const [copyRosterTarget, setCopyRosterTarget] = useState(null)
+  const [copyStoreIds, setCopyStoreIds] = useState([])
   const [selectedRoster, setSelectedRoster] = useState(null)
   const qc = useQueryClient()
 
   const emptyRoster = { name: '', store_id: '', start_date: '', end_date: '' }
   const [rForm, setRForm] = useState(emptyRoster)
 
-  const emptyShift = { roster_id: '', store_id: '', user_id: '', date: '', start_time: '', end_time: '', role_label: '', zone: '' }
+  const emptyShift = { roster_id: '', store_id: '', user_id: '', shift_start: '', shift_end: '', start_time: '', end_time: '', role_label: '', zone: '' }
   const [sForm, setSForm] = useState(emptyShift)
 
   const { data: rawRosters, isLoading: loadingRosters } = useQuery({
@@ -74,9 +77,31 @@ export default function RosterPage() {
   })
 
   const createShift = useMutation({
-    mutationFn: (p) => client.post('/field/shifts', { ...p, store_id: selectedRoster?.store_id }),
+    mutationFn: async (p) => {
+      // Generate one shift per day in the date range
+      const start = new Date(p.shift_start)
+      const end = new Date(p.shift_end)
+      const days = []
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        days.push(d.toISOString().slice(0, 10))
+      }
+      for (const date of days) {
+        await client.post('/field/shifts', {
+          roster_id: p.roster_id, store_id: selectedRoster?.store_id,
+          user_id: p.user_id, date,
+          start_time: p.start_time, end_time: p.end_time,
+          role_label: p.role_label, zone: p.zone,
+        })
+      }
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts', selectedRoster?.id] }); setShowShiftModal(false); setSForm(emptyShift) },
     onError: () => alert('Failed to create shift.'),
+  })
+
+  const copyRoster = useMutation({
+    mutationFn: ({ id, store_ids }) => client.post(`/field/rosters/${id}/copy`, { store_ids }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rosters'] }); setShowCopyModal(false); setCopyStoreIds([]) },
+    onError: () => alert('Failed to copy roster.'),
   })
 
   const deleteShift = async (id) => {
@@ -96,8 +121,9 @@ export default function RosterPage() {
     cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
     name: { fontSize: 15, fontWeight: 800, color: colors.dark },
     meta: { fontSize: 12, color: colors.midGrey },
-    cardFooter: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 },
+    cardFooter: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4, flexWrap: 'wrap' },
     viewBtn: { padding: '6px 14px', background: colors.primaryBg, color: colors.primary, border: `1.5px solid ${colors.primary}`, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
+    copyBtn: { padding: '6px 12px', background: '#EFF6FF', color: '#1D4ED8', border: '1.5px solid #1D4ED8', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
     publishBtn: { padding: '6px 14px', background: colors.successBg || '#D1FAE5', color: colors.success || '#10B981', border: `1.5px solid ${colors.success || '#10B981'}`, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
     backBtn: { padding: '7px 16px', background: colors.white, color: colors.midGrey, border: `1.5px solid ${colors.border}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 20 },
     table: { width: '100%', borderCollapse: 'collapse', background: colors.white, borderRadius: 12, overflow: 'hidden', boxShadow: shadow.sm },
@@ -155,6 +181,7 @@ export default function RosterPage() {
                     {r.status !== 'published' && (
                       <button style={s.publishBtn} onClick={() => publishRoster.mutate(r.id)}>Publish</button>
                     )}
+                    <button style={s.copyBtn} onClick={() => { setCopyRosterTarget(r); setCopyStoreIds([]); setShowCopyModal(true) }}>Copy to Stores</button>
                     <button style={s.viewBtn} onClick={() => setSelectedRoster(r)}>View Shifts</button>
                   </div>
                 </div>
@@ -263,9 +290,22 @@ export default function RosterPage() {
                   {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
               </div>
-              <div style={s.fieldGroup}>
-                <label style={s.label}>Date</label>
-                <input type="date" style={INPUT} value={sForm.date} onChange={(e) => setSForm(f => ({ ...f, date: e.target.value }))} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={s.label}>From Date *</label>
+                  <input type="date" style={INPUT} value={sForm.shift_start}
+                    min={selectedRoster?.start_date} max={selectedRoster?.end_date}
+                    onChange={(e) => setSForm(f => ({ ...f, shift_start: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={s.label}>To Date *</label>
+                  <input type="date" style={INPUT} value={sForm.shift_end}
+                    min={selectedRoster?.start_date} max={selectedRoster?.end_date}
+                    onChange={(e) => setSForm(f => ({ ...f, shift_end: e.target.value }))} />
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: colors.midGrey, marginBottom: 14, marginTop: -10 }}>
+                Roster period: {selectedRoster?.start_date} → {selectedRoster?.end_date}. A shift will be created for each day in this range.
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
                 <div>
@@ -292,6 +332,38 @@ export default function RosterPage() {
                 <button type="button" style={s.cancelBtn} onClick={() => setShowShiftModal(false)}>Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Copy Roster Modal */}
+      {showCopyModal && copyRosterTarget && (
+        <div style={OVERLAY} onClick={() => setShowCopyModal(false)}>
+          <div style={MODAL} onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalTitle}>Copy "{copyRosterTarget.name}" to Stores</div>
+            <div style={{ fontSize: 12, color: colors.midGrey, marginBottom: 16 }}>
+              Select one or more stores to copy this roster (with all its shifts) to:
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20, maxHeight: 240, overflowY: 'auto' }}>
+              {stores.filter(st => st.id !== copyRosterTarget.store_id).map(st => (
+                <label key={st.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', padding: '8px 12px', borderRadius: 8, background: copyStoreIds.includes(st.id) ? colors.primaryBg : colors.surfaceLow || '#F9FAFB', border: `1.5px solid ${copyStoreIds.includes(st.id) ? colors.primary : colors.border}` }}>
+                  <input type="checkbox" checked={copyStoreIds.includes(st.id)}
+                    onChange={(e) => setCopyStoreIds(prev => e.target.checked ? [...prev, st.id] : prev.filter(id => id !== st.id))}
+                  />
+                  {st.name}
+                </label>
+              ))}
+            </div>
+            <div style={s.modalActions}>
+              <button
+                style={s.submitBtn}
+                disabled={copyStoreIds.length === 0 || copyRoster.isPending}
+                onClick={() => copyRoster.mutate({ id: copyRosterTarget.id, store_ids: copyStoreIds })}
+              >
+                {copyRoster.isPending ? 'Copying…' : `Copy to ${copyStoreIds.length} Store${copyStoreIds.length !== 1 ? 's' : ''}`}
+              </button>
+              <button style={s.cancelBtn} onClick={() => setShowCopyModal(false)}>Cancel</button>
+            </div>
           </div>
         </div>
       )}

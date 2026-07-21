@@ -231,6 +231,43 @@ exports.getRoster = async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to get roster' }); }
 };
 
+exports.copyRoster = async (req, res) => {
+  try {
+    const { store_ids } = req.body;
+    if (!Array.isArray(store_ids) || !store_ids.length) return res.status(400).json({ error: 'store_ids required' });
+
+    const { rows: source } = await query(
+      `SELECT rs.* FROM roster_schedules rs JOIN stores st ON st.id = rs.store_id WHERE rs.id=$1 AND st.brand_id=$2`,
+      [req.params.id, req.user.brand_id]
+    );
+    if (!source.length) return res.status(404).json({ error: 'Roster not found' });
+
+    const { rows: shifts } = await query(
+      `SELECT * FROM shifts WHERE roster_id=$1`, [req.params.id]
+    );
+
+    const created = [];
+    for (const storeId of store_ids) {
+      const { rows: storeCheck } = await query(`SELECT id FROM stores WHERE id=$1 AND brand_id=$2`, [storeId, req.user.brand_id]);
+      if (!storeCheck.length) continue;
+      const { rows: newRoster } = await query(
+        `INSERT INTO roster_schedules(store_id, name, start_date, end_date, created_by)
+         VALUES($1,$2,$3,$4,$5) RETURNING *`,
+        [storeId, source[0].name, source[0].start_date, source[0].end_date, req.user.id]
+      );
+      for (const sh of shifts) {
+        await query(
+          `INSERT INTO shifts(roster_id, store_id, user_id, date, start_time, end_time, role_label, zone, notes)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [newRoster[0].id, storeId, sh.user_id, sh.date, sh.start_time, sh.end_time, sh.role_label, sh.zone, sh.notes]
+        );
+      }
+      created.push(newRoster[0]);
+    }
+    res.status(201).json({ copied: created.length, rosters: created });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to copy roster' }); }
+};
+
 exports.publishRoster = async (req, res) => {
   try {
     await query(
