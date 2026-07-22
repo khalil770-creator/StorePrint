@@ -172,9 +172,9 @@ exports.submitChecklist = async (req, res) => {
         [item.checklist_item_id]
       );
       await query(
-        `INSERT INTO environment_issues(submission_id, store_id, item_text, severity, photo_url)
-         VALUES($1,$2,$3,$4,$5)`,
-        [sub[0].id, store_id, clItem[0]?.item_text || 'Unknown item',
+        `INSERT INTO environment_issues(brand_id, submission_id, store_id, item_text, severity, photo_url)
+         VALUES($1,$2,$3,$4,$5,$6)`,
+        [req.user.brand_id, sub[0].id, store_id, clItem[0]?.item_text || 'Unknown item',
          item.severity || 'medium', item.photo_url || null]
       );
     }
