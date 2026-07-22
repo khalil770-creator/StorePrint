@@ -4,34 +4,32 @@ import {
   Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { colors, typography, radius, shadow } from '../../constants/theme';
 import client from '../../api/client';
 
-const MOCK_STORES = [
-  { id: 's1', name: 'Gulshan Branch', city: 'Karachi' },
-  { id: 's2', name: 'DHA Phase 5', city: 'Karachi' },
-  { id: 's3', name: 'Blue Area', city: 'Islamabad' },
-  { id: 's4', name: 'F-7 Markaz', city: 'Islamabad' },
-  { id: 's5', name: 'MM Alam Road', city: 'Lahore' },
-  { id: 's6', name: 'Johar Town', city: 'Lahore' },
-  { id: 's7', name: 'Gulberg III', city: 'Lahore' },
-];
-
 export default function PrintRequestScreen({ route, navigation }) {
   const template = route.params?.template;
   const [selectedStore, setSelectedStore] = useState(null);
+
+  const { data: storesData } = useQuery({
+    queryKey: ['stores-list'],
+    queryFn: () => client.get('/stores').then(r => r.data),
+  });
+  const stores = Array.isArray(storesData) ? storesData : (storesData?.data || []);
   const [storePickerOpen, setStorePickerOpen] = useState(false);
   const [quantity, setQuantity] = useState('1');
   const [instructions, setInstructions] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const canSubmit = selectedStore && quantity && parseInt(quantity, 10) > 0;
 
   const submit = useMutation({
     mutationFn: (body) => client.post('/signage/print-requests', body).then(r => r.data),
-    onSuccess: () => Alert.alert('Submitted!', 'Print request sent.', [{ text: 'OK', onPress: () => navigation.goBack() }]),
-    onError: (err) => Alert.alert('Error', err.response?.data?.error || 'Failed'),
+    onSuccess: () => { setSubmitted(true); setTimeout(() => navigation.goBack(), 2000); },
+    onError: (err) => setErrorMsg(err.response?.data?.error || 'Failed to submit print request'),
   });
 
   function handleSubmit() {
@@ -75,19 +73,21 @@ export default function PrintRequestScreen({ route, navigation }) {
 
           {storePickerOpen && (
             <View style={styles.storeList}>
-              {MOCK_STORES.map((s) => (
+              {stores.length === 0 && (
+                <View style={{ padding: 12 }}>
+                  <Text style={{ color: colors.lightGrey, fontSize: typography.sm }}>No stores found</Text>
+                </View>
+              )}
+              {stores.map((s) => (
                 <TouchableOpacity
                   key={s.id}
                   style={[styles.storeOption, selectedStore?.id === s.id && styles.storeOptionSelected]}
-                  onPress={() => {
-                    setSelectedStore(s);
-                    setStorePickerOpen(false);
-                  }}
+                  onPress={() => { setSelectedStore(s); setStorePickerOpen(false); }}
                 >
                   <Text style={[styles.storeOptionText, selectedStore?.id === s.id && styles.storeOptionTextSelected]}>
                     {s.name}
                   </Text>
-                  <Text style={styles.storeOptionCity}>{s.city}</Text>
+                  <Text style={styles.storeOptionCity}>{s.city || s.region || ''}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -104,13 +104,9 @@ export default function PrintRequestScreen({ route, navigation }) {
             >
               <Text style={styles.qtyBtnText}>−</Text>
             </TouchableOpacity>
-            <TextInput
-              style={styles.qtyInput}
-              value={quantity}
-              onChangeText={(v) => setQuantity(v.replace(/[^0-9]/g, ''))}
-              keyboardType="numeric"
-              textAlign="center"
-            />
+            <View style={styles.qtyDisplay}>
+              <Text style={styles.qtyValue}>{quantity}</Text>
+            </View>
             <TouchableOpacity
               style={styles.qtyBtn}
               onPress={() => setQuantity((v) => String(parseInt(v, 10) + 1))}
@@ -118,6 +114,7 @@ export default function PrintRequestScreen({ route, navigation }) {
               <Text style={styles.qtyBtnText}>+</Text>
             </TouchableOpacity>
           </View>
+          <Text style={styles.qtyHint}>copies</Text>
         </View>
 
         {/* Special Instructions */}
@@ -134,6 +131,17 @@ export default function PrintRequestScreen({ route, navigation }) {
             textAlignVertical="top"
           />
         </View>
+
+        {submitted && (
+          <View style={styles.successBox}>
+            <Text style={styles.successText}>✅ Print request submitted!</Text>
+          </View>
+        )}
+        {!!errorMsg && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>❌ {errorMsg}</Text>
+          </View>
+        )}
 
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -172,13 +180,19 @@ const styles = StyleSheet.create({
   storeOptionText:      { fontSize: typography.sm, fontWeight: '600', color: colors.dark },
   storeOptionTextSelected: { color: colors.primary },
   storeOptionCity:      { fontSize: typography.xs, color: colors.lightGrey },
-  quantityRow:          { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  qtyBtn:               { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  qtyBtnText:           { fontSize: 24, color: colors.dark, fontWeight: '400', lineHeight: 28 },
-  qtyInput:             { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: 10, fontSize: typography.xl, fontWeight: '700', color: colors.dark, backgroundColor: colors.inputBg },
+  quantityRow:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20, marginBottom: 6 },
+  qtyBtn:               { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primaryBg, borderWidth: 1.5, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  qtyBtnText:           { fontSize: 26, color: colors.primary, fontWeight: '600', lineHeight: 30 },
+  qtyDisplay:           { width: 80, height: 56, borderRadius: radius.md, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  qtyValue:             { fontSize: 28, fontWeight: '800', color: colors.dark },
+  qtyHint:              { fontSize: typography.xs, color: colors.lightGrey, textAlign: 'center' },
   textArea:             { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 12, fontSize: typography.sm, color: colors.dark, minHeight: 96, backgroundColor: colors.inputBg },
   ctaBar:               { padding: 16, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.border },
   ctaBtn:               { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', ...shadow.green },
   ctaBtnDisabled:       { backgroundColor: colors.border },
   ctaBtnText:           { color: colors.white, fontSize: typography.md, fontWeight: '700' },
+  successBox:           { backgroundColor: '#D1FAE5', borderRadius: radius.md, padding: 14, alignItems: 'center' },
+  successText:          { fontSize: typography.sm, fontWeight: '700', color: '#065F46' },
+  errorBox:             { backgroundColor: '#FEE2E2', borderRadius: radius.md, padding: 14 },
+  errorText:            { fontSize: typography.sm, fontWeight: '600', color: '#991B1B' },
 });
