@@ -4,7 +4,7 @@ import {
   Alert, Image, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import StatusChip from '../../components/common/StatusChip';
@@ -20,11 +20,19 @@ export default function VMTaskScreen({ route, navigation }) {
   const [score, setScore] = useState(80);
   const [notes, setNotes] = useState('');
 
+  const [submitted, setSubmitted] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const { data: myStore } = useQuery({
+    queryKey: ['my-store'],
+    queryFn: () => client.get('/field/my-store').then(r => r.data),
+  });
+
   const submit = useMutation({
-    mutationFn: ({ lat, lng, score: s, notes: n }) =>
-      client.post(`/vm/tasks/${task.id}/submit`, { lat, lng, score: s, notes: n }).then(r => r.data),
-    onSuccess: () => Alert.alert('Submitted!', 'VM task submitted.', [{ text: 'OK', onPress: () => navigation.goBack() }]),
-    onError: (err) => Alert.alert('Error', err.response?.data?.error || 'Submit failed'),
+    mutationFn: ({ gps: g, score: s, notes: n, store_id }) =>
+      client.post(`/vm/tasks/${task.id}/submit`, { store_id, gps: g, score: s, notes: n }).then(r => r.data),
+    onSuccess: () => { setSubmitted(true); setTimeout(() => navigation.goBack(), 2000); },
+    onError: (err) => setErrorMsg(err.response?.data?.error || 'Submit failed'),
   });
 
   const canSubmit = gps !== null;
@@ -71,7 +79,10 @@ export default function VMTaskScreen({ route, navigation }) {
 
   function handleSubmit() {
     if (!canSubmit) return;
-    submit.mutate({ lat: gps.lat, lng: gps.lng, score, notes });
+    const storeId = task.store_id || myStore?.id || null;
+    if (!storeId) { setErrorMsg('No store assigned. Please contact your manager.'); return; }
+    setErrorMsg('');
+    submit.mutate({ store_id: storeId, gps: { lat: gps.lat, lng: gps.lng, accuracy_m: gps.accuracy_m }, score, notes });
   }
 
   function scoreColor() {
@@ -192,6 +203,17 @@ export default function VMTaskScreen({ route, navigation }) {
           />
         </View>
 
+        {submitted && (
+          <View style={styles.successBox}>
+            <Text style={styles.successText}>✅ VM task submitted! Redirecting...</Text>
+          </View>
+        )}
+        {!!errorMsg && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>❌ {errorMsg}</Text>
+          </View>
+        )}
+
         <View style={{ height: 24 }} />
       </ScrollView>
 
@@ -258,6 +280,10 @@ const styles = StyleSheet.create({
   slider:             { width: '100%', height: 40 },
   sliderLabels:       { flexDirection: 'row', justifyContent: 'space-between', marginTop: -8 },
   sliderLabel:        { fontSize: typography.xs, color: colors.lightGrey },
+  successBox:         { backgroundColor: '#D1FAE5', borderRadius: radius.md, padding: 14, marginHorizontal: 16, alignItems: 'center' },
+  successText:        { fontSize: typography.sm, fontWeight: '700', color: '#065F46' },
+  errorBox:           { backgroundColor: '#FEE2E2', borderRadius: radius.md, padding: 14, marginHorizontal: 16 },
+  errorText:          { fontSize: typography.sm, fontWeight: '600', color: '#991B1B' },
   notesInput:         { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 12, fontSize: typography.sm, color: colors.dark, minHeight: 96, backgroundColor: colors.inputBg },
   ctaBar:             { padding: 16, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.border },
   ctaBtn:             { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', ...shadow.green },
