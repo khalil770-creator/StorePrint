@@ -24,6 +24,7 @@ import CourseBuilder     from './pages/training/CourseBuilder'
 import BrandHubPage      from './pages/brand-hub/BrandHubPage'
 import CampaignsList     from './pages/campaigns/CampaignsList'
 import CampaignBuilder   from './pages/campaigns/CampaignBuilder'
+import CampaignDetail    from './pages/campaigns/CampaignDetail'
 import VMPage            from './pages/vm/VMPage'
 import RosterPage        from './pages/field/RosterPage'
 import FieldAttendancePage from './pages/field/FieldAttendancePage'
@@ -71,7 +72,8 @@ export default function App() {
             <Route path="brand-hub" element={<BrandHubPage />} />
             <Route path="campaigns" element={<CampaignsList />} />
             <Route path="campaigns/new" element={<CampaignBuilder />} />
-            <Route path="campaigns/:id" element={<CampaignBuilder />} />
+            <Route path="campaigns/:id" element={<CampaignDetail />} />
+            <Route path="campaigns/:id/edit" element={<CampaignBuilder />} />
             <Route path="vm" element={<VMPage />} />
             <Route path="roster" element={<RosterPage />} />
             <Route path="field-attendance" element={<FieldAttendancePage />} />

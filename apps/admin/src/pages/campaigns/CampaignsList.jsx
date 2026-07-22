@@ -176,7 +176,8 @@ export default function CampaignsList() {
                       <button style={s.deleteBtn} disabled={deletingId === c.id} onClick={() => handleDelete(c)}>
                         {deletingId === c.id ? '…' : 'Delete'}
                       </button>
-                      <button style={s.editBtn} onClick={() => navigate(`/admin/campaigns/${c.id}`)}>Edit</button>
+                      <button style={s.editBtn} onClick={() => navigate(`/admin/campaigns/${c.id}/edit`)}>Edit</button>
+                      <button style={{ ...s.editBtn, background: colors.primary, color: colors.white }} onClick={() => navigate(`/admin/campaigns/${c.id}`)}>View</button>
                     </div>
                   </div>
                 </div>

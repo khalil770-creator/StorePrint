@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Alert, Image, ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Alert, Image, ActivityIndicator, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { colors, typography, radius, shadow } from '../../constants/theme';
@@ -12,22 +12,29 @@ import client from '../../api/client';
 
 export default function CampaignConfirmScreen({ route, navigation }) {
   const campaign = route.params?.campaign || {};
-  const storeId = campaign.stores?.[0]?.id ?? route.params?.store_id ?? null;
+  const { data: myStore } = useQuery({
+    queryKey: ['my-store'],
+    queryFn: () => client.get('/field/my-store').then(r => r.data),
+  });
+  const storeId = campaign.stores?.[0]?.id ?? route.params?.store_id ?? myStore?.id ?? null;
   const [gps, setGps] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [photos, setPhotos] = useState([]);
   const [notes, setNotes] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const qc = useQueryClient();
   const confirm = useMutation({
-    mutationFn: ({ store_id, lat, lng, notes: n }) =>
-      client.post(`/campaigns/${campaign.id}/confirm`, { store_id, lat, lng, notes: n }).then(r => r.data),
+    mutationFn: ({ store_id, gps: g, notes: n }) =>
+      client.post(`/campaigns/${campaign.id}/confirm`, { store_id, gps: g, notes: n }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['campaigns'] });
       qc.invalidateQueries({ queryKey: ['campaign', campaign.id] });
-      Alert.alert('Confirmed!', 'Campaign execution confirmed.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      setSubmitted(true);
+      setTimeout(() => navigation.goBack(), 2000);
     },
-    onError: (err) => Alert.alert('Error', err.response?.data?.error || 'Confirmation failed'),
+    onError: (err) => setErrorMsg(err.response?.data?.error || 'Confirmation failed'),
   });
 
   const canSubmit = gps && photos.length > 0;
@@ -74,7 +81,12 @@ export default function CampaignConfirmScreen({ route, navigation }) {
 
   function handleSubmit() {
     if (!canSubmit) return;
-    confirm.mutate({ store_id: storeId, lat: gps.lat, lng: gps.lng, notes });
+    if (!storeId) {
+      setErrorMsg('Your account is not assigned to a store. Please contact your manager.');
+      return;
+    }
+    setErrorMsg('');
+    confirm.mutate({ store_id: storeId, gps: { lat: gps.lat, lng: gps.lng, accuracy_m: gps.accuracy_m }, notes });
   }
 
   return (
@@ -160,6 +172,18 @@ export default function CampaignConfirmScreen({ route, navigation }) {
           </View>
         )}
 
+        {submitted && (
+          <View style={styles.successBox}>
+            <Text style={styles.successText}>✅ Campaign execution confirmed! Redirecting...</Text>
+          </View>
+        )}
+
+        {!!errorMsg && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>❌ {errorMsg}</Text>
+          </View>
+        )}
+
         <View style={{ height: 24 }} />
       </ScrollView>
 
@@ -204,6 +228,10 @@ const styles = StyleSheet.create({
   notesInput:     { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 12, fontSize: typography.sm, color: colors.dark, minHeight: 96, backgroundColor: colors.inputBg },
   hintBox:        { backgroundColor: '#FFF8E1', borderRadius: radius.md, padding: 12 },
   hintText:       { fontSize: typography.sm, color: '#F57F17', lineHeight: 20 },
+  successBox:     { backgroundColor: '#D1FAE5', borderRadius: radius.md, padding: 14, alignItems: 'center' },
+  successText:    { fontSize: typography.sm, fontWeight: '700', color: '#065F46' },
+  errorBox:       { backgroundColor: '#FEE2E2', borderRadius: radius.md, padding: 14 },
+  errorText:      { fontSize: typography.sm, fontWeight: '600', color: '#991B1B' },
   ctaBar:         { padding: 16, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.border },
   ctaBtn:         { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', ...shadow.green },
   ctaBtnDisabled: { backgroundColor: colors.border },
