@@ -15,7 +15,7 @@ export default function PrintRequestScreen({ route, navigation }) {
 
   const { data: storesData } = useQuery({
     queryKey: ['stores-list'],
-    queryFn: () => client.get('/stores').then(r => r.data),
+    queryFn: () => client.get('/stores/list').then(r => r.data),
   });
   const stores = Array.isArray(storesData) ? storesData : (storesData?.data || []);
   const [storePickerOpen, setStorePickerOpen] = useState(false);
