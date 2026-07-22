@@ -100,19 +100,22 @@ export default function VMTaskScreen({ route, navigation }) {
         {/* Task Details */}
         <View style={[styles.card, shadow.sm]}>
           <Text style={styles.cardTitle}>📋 Task Details</Text>
-          <Detail label="Template" value={task.template_name || task.template || '—'} />
-          <Detail label="Zone" value={task.zone || '—'} />
-          <Detail label="Due Date" value={task.due_date || task.dueDate || '—'} />
+          <Detail label="Title" value={task.title || '—'} />
+          <Detail label="Template" value={task.template_title || '—'} />
+          <Detail label="Store" value={task.store_name || '—'} />
+          <Detail label="Assigned To" value={task.assigned_to_name || '—'} />
+          <Detail label="Priority" value={task.priority || '—'} />
+          <Detail label="Due Date" value={task.due_date ? new Date(task.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'} />
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Status</Text>
             <StatusChip status={task.status} />
           </View>
-          <View style={[styles.instructionBox]}>
-            <Text style={styles.instructionTitle}>Instructions</Text>
-            <Text style={styles.instructionText}>
-              Arrange products in the designated zone according to the planogram. Ensure all price tags are visible and facing outward. The display should be fully stocked with correct SKUs.
-            </Text>
-          </View>
+          {!!task.instructions && (
+            <View style={[styles.instructionBox]}>
+              <Text style={styles.instructionTitle}>Instructions</Text>
+              <Text style={styles.instructionText}>{task.instructions}</Text>
+            </View>
+          )}
         </View>
 
         {/* GPS */}

@@ -24,7 +24,7 @@ export default function TrainingDashboardScreen({ navigation }) {
     queryKey: ['my-enrollments'],
     queryFn: () => client.get('/training/enrollments/me').then(r => r.data),
   });
-  const courseList = courses?.data || [];
+  const courseList = Array.isArray(courses) ? courses : (courses?.data || []);
   const enrollmentList = enrollments || [];
 
   const enrolledIds = new Set(enrollmentList.map((e) => e.course_id || e.id));

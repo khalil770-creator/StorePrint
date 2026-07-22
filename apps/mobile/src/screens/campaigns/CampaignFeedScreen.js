@@ -32,7 +32,7 @@ export default function CampaignFeedScreen({ navigation }) {
     queryKey: ['campaigns'],
     queryFn: () => client.get('/campaigns').then(r => r.data),
   });
-  const campaigns = data?.data || [];
+  const campaigns = Array.isArray(data) ? data : (data?.data || []);
 
   const filtered = campaigns.filter((c) => {
     if (activeFilter === 'All') return true;
@@ -101,7 +101,7 @@ export default function CampaignFeedScreen({ navigation }) {
                 </View>
 
                 <Text style={styles.dates}>
-                  {formatDate(item.launch_date || item.startDate)} – {formatDate(item.end_date || item.endDate)}
+                  {formatDate(item.start_date)} – {formatDate(item.end_date)}
                 </Text>
 
                 <View style={styles.progressRow}>

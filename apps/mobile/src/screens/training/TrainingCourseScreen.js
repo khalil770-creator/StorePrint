@@ -18,7 +18,6 @@ export default function TrainingCourseScreen({ navigation, route }) {
     queryKey: ['training-course', id],
     queryFn: () => client.get(`/training/courses/${id}`).then(r => r.data),
     enabled: !!id,
-    initialData: route.params?.course,
   });
 
   const qc = useQueryClient();
@@ -88,7 +87,7 @@ export default function TrainingCourseScreen({ navigation, route }) {
             </View>
             <View style={styles.moduleInfo}>
               <Text style={styles.moduleTitle}>{mod.title}</Text>
-              <Text style={styles.moduleMeta}>{mod.type.toUpperCase()} · {mod.duration}</Text>
+              <Text style={styles.moduleMeta}>{mod.type?.toUpperCase() || ''}{mod.duration ? ` · ${mod.duration}` : ''}</Text>
             </View>
             <View style={styles.moduleStatus}>
               {mod.completed

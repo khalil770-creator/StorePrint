@@ -25,7 +25,7 @@ export default function SignageLibraryScreen({ navigation }) {
     queryKey: ['signage-templates'],
     queryFn: () => client.get('/signage/templates').then(r => r.data),
   });
-  const templates = data?.data || [];
+  const templates = Array.isArray(data) ? data : (data?.data || []);
 
   const filtered = templates.filter((t) => {
     if (activeCategory === 'All') return true;

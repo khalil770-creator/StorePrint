@@ -11,6 +11,11 @@ import client from '../../api/client';
 
 const TABS = ['Overview', 'Assets', 'Stores', 'Confirmations'];
 
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function typeColor(t) {
   if (t === 'PDF') return '#D0021B';
   if (t === 'PSD') return '#4A90E2';
@@ -20,11 +25,10 @@ function typeColor(t) {
 
 export default function CampaignDetailScreen({ route, navigation }) {
   const id = route.params?.campaign?.id;
-  const { data: campaign = route.params?.campaign || {}, isLoading } = useQuery({
+  const { data: campaign = {}, isLoading } = useQuery({
     queryKey: ['campaign', id],
     queryFn: () => client.get(`/campaigns/${id}`).then(r => r.data),
     enabled: !!id,
-    initialData: route.params?.campaign,
   });
   const [activeTab, setActiveTab] = useState('Overview');
 
@@ -45,12 +49,10 @@ export default function CampaignDetailScreen({ route, navigation }) {
         <View style={styles.heroRow}>
           <StatusChip status={campaign.status} />
           <Text style={styles.heroDate}>
-            {campaign.launch_date || campaign.startDate} – {campaign.end_date || campaign.endDate}
+            {fmtDate(campaign.start_date)} – {fmtDate(campaign.end_date)}
           </Text>
         </View>
-        <Text style={styles.heroDesc}>
-          Drive brand visibility and increase footfall across all assigned stores during this period.
-        </Text>
+        <Text style={styles.heroDesc}>{campaign.description || ''}</Text>
       </View>
 
       <View style={styles.tabBar}>
@@ -69,16 +71,16 @@ export default function CampaignDetailScreen({ route, navigation }) {
         {activeTab === 'Overview' && (
           <View style={styles.section}>
             <Detail label="Campaign Type" value={campaign.type || '—'} />
-            <Detail label="Start Date" value={campaign.launch_date || campaign.startDate || '—'} />
-            <Detail label="End Date" value={campaign.end_date || campaign.endDate || '—'} />
-            <Detail label="Stores Assigned" value={String(campaign.total_stores ?? campaign.storesTotal ?? 0)} />
-            <Detail label="Confirmations" value={`${campaign.confirmed_count ?? campaign.storesConfirmed ?? 0} / ${campaign.total_stores ?? campaign.storesTotal ?? 0}`} />
-            <View style={[styles.noteBox, shadow.sm]}>
-              <Text style={styles.noteTitle}>📋 Campaign Brief</Text>
-              <Text style={styles.noteText}>
-                This campaign focuses on seasonal visual merchandising updates, window dressing, and POS signage placement. All assigned stores must confirm execution with photographic evidence within the campaign window.
-              </Text>
-            </View>
+            <Detail label="Start Date" value={fmtDate(campaign.start_date)} />
+            <Detail label="End Date" value={fmtDate(campaign.end_date)} />
+            <Detail label="Stores Assigned" value={String(campaign.total_stores ?? campaign.store_count ?? 0)} />
+            <Detail label="Confirmations" value={`${campaign.confirmed_count ?? 0} / ${campaign.total_stores ?? campaign.store_count ?? 0}`} />
+            {!!campaign.brief_url && (
+              <View style={[styles.noteBox, shadow.sm]}>
+                <Text style={styles.noteTitle}>📋 Campaign Brief</Text>
+                <Text style={styles.noteText}>{campaign.brief_url}</Text>
+              </View>
+            )}
           </View>
         )}
 

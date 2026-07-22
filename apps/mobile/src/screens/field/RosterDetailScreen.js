@@ -166,6 +166,39 @@ export default function RosterDetailScreen({ route, navigation }) {
 
   const shifts   = roster?.shifts || [];
   const isDraft  = !roster?.status || roster.status === 'draft';
+
+  // Group shifts by user, consolidate consecutive same-slot days into blocks
+  const consolidatedByUser = React.useMemo(() => {
+    const byUser = {};
+    shifts.forEach(sh => {
+      if (!byUser[sh.user_id]) byUser[sh.user_id] = { name: sh.user_name, shifts: [] };
+      byUser[sh.user_id].shifts.push(sh);
+    });
+    return Object.values(byUser).map(u => {
+      const sorted = [...u.shifts].sort((a, b) => a.date > b.date ? 1 : -1);
+      const blocks = [];
+      sorted.forEach(sh => {
+        const last = blocks[blocks.length - 1];
+        const curDate = new Date(sh.date).getTime();
+        const prevDate = last ? new Date(last.to).getTime() : null;
+        const isConsec = prevDate && (curDate - prevDate) <= 86400000;
+        const sameSlot = last &&
+          last.start_time === sh.start_time &&
+          last.end_time === sh.end_time &&
+          last.role_label === sh.role_label &&
+          last.zone === sh.zone;
+        if (isConsec && sameSlot) {
+          last.to = sh.date;
+          last.ids.push(sh.id);
+          last.days++;
+        } else {
+          blocks.push({ ...sh, from: sh.date, to: sh.date, ids: [sh.id], days: 1 });
+        }
+      });
+      return { name: u.name, blocks };
+    });
+  }, [shifts]);
+
   const morning  = shifts.filter(s => s.start_time && parseInt(s.start_time) < 14).length;
   const evening  = shifts.filter(s => s.start_time && parseInt(s.start_time) >= 14).length;
   const totalHrs = shifts.reduce((sum, s) => {
@@ -241,30 +274,48 @@ export default function RosterDetailScreen({ route, navigation }) {
             </View>
           )}
 
-          {shifts.map((shift, i) => {
-            const isM = shift.start_time && parseInt(shift.start_time) < 14;
-            return (
-              <View key={shift.id ?? i} style={s.shiftRow}>
-                <View style={[s.dot, { backgroundColor: isM ? colors.primary : '#F59E0B' }]} />
-                <View style={s.shiftInfo}>
-                  <Text style={s.shiftName}>{shift.user_name || '—'}</Text>
-                  <Text style={s.shiftMeta}>
-                    {fmtDate(shift.date)}
-                    {shift.role_label ? `  ·  ${shift.role_label}` : ''}
-                    {shift.zone ? `  ·  ${shift.zone}` : ''}
-                  </Text>
-                </View>
-                <Text style={s.shiftTime}>
-                  {shift.start_time || '--'} – {shift.end_time || '--'}
-                </Text>
-                {isDraft && (
-                  <TouchableOpacity onPress={() => confirmDelete(shift)} style={s.delBtn}>
-                    <Text style={s.delIcon}>✕</Text>
-                  </TouchableOpacity>
-                )}
+          {consolidatedByUser.map((user, ui) => (
+            <View key={ui} style={s.userGroup}>
+              <View style={s.userGroupHeader}>
+                <Text style={s.userGroupName}>👤 {user.name}</Text>
+                <Text style={s.userGroupCount}>{user.blocks.length} block{user.blocks.length !== 1 ? 's' : ''}</Text>
               </View>
-            );
-          })}
+              {user.blocks.map((block, bi) => {
+                const isM = block.start_time && parseInt(block.start_time) < 14;
+                const dateLabel = block.from === block.to
+                  ? fmtDate(block.from)
+                  : `${fmtDate(block.from)} → ${fmtDate(block.to)}`;
+                return (
+                  <View key={bi} style={s.shiftRow}>
+                    <View style={[s.dot, { backgroundColor: isM ? colors.primary : '#F59E0B' }]} />
+                    <View style={s.shiftInfo}>
+                      <Text style={s.shiftName}>{dateLabel}</Text>
+                      <Text style={s.shiftMeta}>
+                        {block.days > 1 ? `${block.days} days  ·  ` : ''}
+                        {block.role_label || ''}
+                        {block.zone ? `  ·  ${block.zone}` : ''}
+                      </Text>
+                    </View>
+                    <Text style={s.shiftTime}>
+                      {block.start_time || '--'} – {block.end_time || '--'}
+                    </Text>
+                    {isDraft && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          Alert.alert('Delete Block', `Delete all ${block.days} shift(s) in this block?`, [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Delete', style: 'destructive', onPress: () => block.ids.forEach(id => deleteShift.mutate(id)) },
+                          ]);
+                        }}
+                        style={s.delBtn}>
+                        <Text style={s.delIcon}>✕</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          ))}
 
           {/* Publish button */}
           {isDraft && shifts.length > 0 && (
@@ -309,6 +360,12 @@ const s = StyleSheet.create({
   emptyBox:       { backgroundColor: colors.white, borderRadius: radius.md, padding: 20,
                     alignItems: 'center', marginBottom: 12, ...shadow.sm },
   emptyText:      { fontSize: typography.sm, color: colors.midGrey },
+
+  userGroup:      { marginBottom: 16 },
+  userGroupHeader:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+                    paddingHorizontal: 4, marginBottom: 6 },
+  userGroupName:  { fontSize: typography.sm, fontWeight: '700', color: colors.dark },
+  userGroupCount: { fontSize: typography.xs, color: colors.midGrey },
 
   shiftRow:       { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white,
                     borderRadius: radius.md, padding: 14, marginBottom: 8, ...shadow.sm },

@@ -21,7 +21,6 @@ export default function SignageDetailScreen({ route, navigation }) {
     queryKey: ['signage-template', id],
     queryFn: () => client.get(`/signage/templates/${id}`).then(r => r.data),
     enabled: !!id,
-    initialData: route.params?.template,
   });
 
   if (isLoading && !route.params?.template) {
@@ -54,12 +53,12 @@ export default function SignageDetailScreen({ route, navigation }) {
           <Detail label="Dimensions" value={template.dimensions || '—'} />
           <Detail label="Material" value={template.material || '—'} />
           <Detail label="File" value={template.file_url || template.filename || '—'} />
-          <View style={[styles.descBox]}>
-            <Text style={styles.descTitle}>Description</Text>
-            <Text style={styles.descText}>
-              High-impact {template.category?.toLowerCase() || 'in-store'} signage template designed for brand consistency across all retail touchpoints. Use in accordance with the current campaign brief and brand guidelines.
-            </Text>
-          </View>
+          {!!template.description && (
+            <View style={[styles.descBox]}>
+              <Text style={styles.descTitle}>Description</Text>
+              <Text style={styles.descText}>{template.description}</Text>
+            </View>
+          )}
         </View>
 
         {/* Action Buttons */}
