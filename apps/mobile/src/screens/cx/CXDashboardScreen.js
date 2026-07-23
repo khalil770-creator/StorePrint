@@ -21,9 +21,9 @@ export default function CXDashboardScreen({ navigation }) {
     queryFn: () => client.get('/cx/dashboard').then(r => r.data),
   });
 
-  const nps = data?.nps ?? 0;
-  const csat = data?.csat ?? 0;
-  const totalResponses = data?.total_responses ?? 0;
+  const nps = data?.overview?.avg_nps ?? 0;
+  const csat = data?.overview?.avg_csat ?? 0;
+  const totalResponses = data?.overview?.total_responses ?? 0;
   const recentReviews = data?.recent_reviews || [];
   const npsColor = nps >= 50 ? colors.success : nps >= 0 ? colors.warning : colors.error;
 
