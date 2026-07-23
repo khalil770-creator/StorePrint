@@ -4,7 +4,7 @@ const ctrl = require('./auth.controller');
 
 router.post('/login',          ctrl.login);
 router.post('/refresh',        ctrl.refresh);
-router.post('/logout',         authenticate, ctrl.logout);
+router.post('/logout',         ctrl.logout);
 router.get('/me',              authenticate, ctrl.me);
 router.put('/me/password',     authenticate, ctrl.changePassword);
 
