@@ -51,7 +51,6 @@ function CompliancePct({ pct }) {
 export default function CampaignsList() {
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const [tab, setTab] = useState('campaigns')
   const [deletingId, setDeletingId] = useState(null)
 
   async function handleDelete(c) {
@@ -77,7 +76,7 @@ export default function CampaignsList() {
       padding: '9px 18px', background: colors.primary, color: colors.white,
       border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
     },
-    tabBar: { display: 'flex', borderBottom: `1px solid ${colors.border}`, marginBottom: 24, gap: 0 },
+    tabBar: { display: 'none' },
     grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 },
     card: {
       background: colors.white, borderRadius: 12, padding: '20px 24px',
@@ -128,109 +127,55 @@ export default function CampaignsList() {
         }
       />
 
-      <div style={s.tabBar}>
-        <button style={TAB_STYLE(tab === 'campaigns')} onClick={() => setTab('campaigns')}>Campaigns</button>
-        <button style={TAB_STYLE(tab === 'compliance')} onClick={() => setTab('compliance')}>Compliance</button>
-      </div>
-
-      {/* ── Campaigns Tab ── */}
-      {tab === 'campaigns' && (
-        <>
-          {isLoading && <div style={s.loadText}>Loading campaigns…</div>}
-          {error && <div style={s.errorText}>Failed to load campaigns.</div>}
-          {!isLoading && !error && campaigns.length === 0 && (
-            <div style={s.empty}>No campaigns yet.<br />Click <strong>+ New Campaign</strong> to get started.</div>
-          )}
-          {campaigns.length > 0 && (
-            <div style={s.grid}>
-              {campaigns.map((c) => (
-                <div key={c.id} style={s.card}>
-                  <div style={s.cardTop}>
-                    <div style={s.name}>{c.title}</div>
-                    <Badge status={statusMap[c.status] || 'inactive'} label={c.status} />
+      {isLoading && <div style={s.loadText}>Loading campaigns…</div>}
+      {error && <div style={s.errorText}>Failed to load campaigns.</div>}
+      {!isLoading && !error && campaigns.length === 0 && (
+        <div style={s.empty}>No campaigns yet.<br />Click <strong>+ New Campaign</strong> to get started.</div>
+      )}
+      {campaigns.length > 0 && (
+        <div style={s.grid}>
+          {campaigns.map((c) => {
+            const total = c.store_count ?? 0
+            const confirmed = c.confirmed_count ?? 0
+            const pct = total > 0 ? Math.round((confirmed / total) * 100) : 0
+            return (
+              <div key={c.id} style={s.card}>
+                <div style={s.cardTop}>
+                  <div style={s.name}>{c.title}</div>
+                  <Badge status={statusMap[c.status] || 'inactive'} label={c.status} />
+                </div>
+                <div style={s.chips}>
+                  <TypeChip type={c.type} />
+                </div>
+                {c.description && <div style={s.meta}>{c.description}</div>}
+                {(c.start_date || c.end_date) && (
+                  <div style={s.dateRange}>
+                    {c.start_date ? new Date(c.start_date).toLocaleDateString() : '—'}
+                    {' → '}
+                    {c.end_date ? new Date(c.end_date).toLocaleDateString() : '—'}
                   </div>
-                  <div style={s.chips}>
-                    <TypeChip type={c.type} />
-                  </div>
-                  {c.description && <div style={s.meta}>{c.description}</div>}
-                  {(c.start_date || c.end_date) && (
-                    <div style={s.dateRange}>
-                      {c.start_date ? new Date(c.start_date).toLocaleDateString() : '—'}
-                      {' → '}
-                      {c.end_date ? new Date(c.end_date).toLocaleDateString() : '—'}
-                    </div>
-                  )}
-                  <div style={s.statsRow}>
-                    <span style={s.statItem}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>store</span>
-                      {c.store_count ?? 0} stores
-                    </span>
-                    <span style={s.statItem}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check_circle</span>
-                      {c.confirmed_count ?? 0} confirmed
-                    </span>
-                  </div>
-                  <div style={s.footer}>
-                    <span style={s.meta}></span>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button style={s.deleteBtn} disabled={deletingId === c.id} onClick={() => handleDelete(c)}>
-                        {deletingId === c.id ? '…' : 'Delete'}
-                      </button>
-                      <button style={s.editBtn} onClick={() => navigate(`/admin/campaigns/${c.id}/edit`)}>Edit</button>
-                      <button style={{ ...s.editBtn, background: colors.primary, color: colors.white }} onClick={() => navigate(`/admin/campaigns/${c.id}`)}>View</button>
-                    </div>
+                )}
+                <div style={s.statsRow}>
+                  <span style={s.statItem}>🏬 {total} store{total !== 1 ? 's' : ''}</span>
+                  <span style={s.statItem}>
+                    <CompliancePct pct={pct} />
+                    <span style={{ marginLeft: 4 }}>{confirmed}/{total} confirmed</span>
+                  </span>
+                </div>
+                <div style={s.footer}>
+                  <span style={s.meta}></span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button style={s.deleteBtn} disabled={deletingId === c.id} onClick={() => handleDelete(c)}>
+                      {deletingId === c.id ? '…' : 'Delete'}
+                    </button>
+                    <button style={s.editBtn} onClick={() => navigate(`/admin/campaigns/${c.id}/edit`)}>Edit</button>
+                    <button style={{ ...s.editBtn, background: colors.primary, color: colors.white }} onClick={() => navigate(`/admin/campaigns/${c.id}`)}>View</button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── Compliance Tab ── */}
-      {tab === 'compliance' && (
-        <>
-          {isLoading && <div style={s.loadText}>Loading compliance data…</div>}
-          {error && <div style={s.errorText}>Failed to load data.</div>}
-          {!isLoading && !error && campaigns.length === 0 && (
-            <div style={s.empty}>No campaigns to show compliance for.</div>
-          )}
-          {campaigns.length > 0 && (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={s.table}>
-                <thead>
-                  <tr>
-                    <th style={s.th}>Campaign</th>
-                    <th style={s.th}>Type</th>
-                    <th style={s.th}>Status</th>
-                    <th style={s.th}>Total Stores</th>
-                    <th style={s.th}>Confirmed</th>
-                    <th style={s.th}>Compliance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {campaigns.map((c) => {
-                    const total = c.store_count ?? 0
-                    const confirmed = c.confirmed_count ?? 0
-                    const pct = total > 0 ? Math.round((confirmed / total) * 100) : 0
-                    return (
-                      <tr key={c.id}>
-                        <td style={{ ...s.td, fontWeight: 600 }}>{c.title}</td>
-                        <td style={s.td}><TypeChip type={c.type} /></td>
-                        <td style={s.td}>
-                          <Badge status={statusMap[c.status] || 'inactive'} label={c.status} />
-                        </td>
-                        <td style={{ ...s.td, fontFamily: fonts.mono }}>{total}</td>
-                        <td style={{ ...s.td, fontFamily: fonts.mono }}>{confirmed}</td>
-                        <td style={s.td}><CompliancePct pct={pct} /></td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
+              </div>
+            )
+          })}
+        </div>
       )}
     </div>
   )

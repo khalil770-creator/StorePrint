@@ -72,12 +72,25 @@ export default function CampaignBuilder() {
     brief_url: '',
   })
   const [errors, setErrors] = useState({})
+  const [selectedStoreIds, setSelectedStoreIds] = useState([])
+  const [storePickerOpen, setStorePickerOpen] = useState(false)
 
+  // Load existing campaign for edit
   const { data: raw, isLoading: loadingExisting } = useQuery({
     queryKey: ['campaign', id],
     queryFn: () => client.get(`/campaigns/${id}`),
     enabled: isEdit,
   })
+
+  // Load all stores
+  const { data: storesRaw } = useQuery({
+    queryKey: ['stores-all'],
+    queryFn: () => client.get('/stores'),
+  })
+  const allStores = (() => {
+    const d = getData(storesRaw)
+    return Array.isArray(d) ? d : (d?.data || [])
+  })()
 
   useEffect(() => {
     if (raw) {
@@ -92,18 +105,31 @@ export default function CampaignBuilder() {
           end_date:    d.end_date   ? d.end_date.slice(0, 10)   : '',
           brief_url:   d.brief_url || '',
         })
+        // Pre-populate store selection from existing assignments
+        if (d.store_assignments && d.store_assignments.length > 0) {
+          setSelectedStoreIds(d.store_assignments.map((a) => a.store_id))
+        }
       }
     }
   }, [raw])
 
   const mutation = useMutation({
-    mutationFn: (payload) =>
-      isEdit
-        ? client.put(`/campaigns/${id}`, payload)
-        : client.post('/campaigns', payload),
-    onSuccess: () => {
+    mutationFn: async (payload) => {
+      let res
+      if (isEdit) {
+        res = await client.put(`/campaigns/${id}`, payload)
+      } else {
+        res = await client.post('/campaigns', payload)
+      }
+      const campaignId = getData(res)?.id || res?.data?.id || id
+      // Assign stores (always replace-all)
+      await client.post(`/campaigns/${campaignId}/stores`, { store_ids: selectedStoreIds })
+      return res
+    },
+    onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['campaigns'] })
-      navigate('/admin/campaigns')
+      const campaignId = getData(res)?.id || res?.data?.id || id
+      navigate(`/admin/campaigns/${campaignId}`)
     },
   })
 
@@ -125,6 +151,20 @@ export default function CampaignBuilder() {
     setForm((f) => ({ ...f, [key]: val }))
     if (errors[key]) setErrors((e) => { const n = { ...e }; delete n[key]; return n })
   }
+
+  function toggleStore(storeId) {
+    setSelectedStoreIds((prev) =>
+      prev.includes(storeId) ? prev.filter((x) => x !== storeId) : [...prev, storeId]
+    )
+  }
+
+  function toggleAll() {
+    const allIds = allStores.map((s) => s.id)
+    const allSelected = allIds.every((sid) => selectedStoreIds.includes(sid))
+    setSelectedStoreIds(allSelected ? [] : allIds)
+  }
+
+  const allSelected = allStores.length > 0 && allStores.every((s) => selectedStoreIds.includes(s.id))
 
   const s = {
     page: { padding: '32px 40px', background: colors.background, minHeight: '100vh' },
@@ -160,6 +200,21 @@ export default function CampaignBuilder() {
       cursor: 'pointer', fontFamily: fonts.body,
     },
     errBanner: { background: colors.errorBg, color: colors.error, borderRadius: 8, padding: '10px 16px', fontSize: 13, marginBottom: 20 },
+    pickerTrigger: {
+      width: '100%', padding: '10px 14px', borderRadius: 8, boxSizing: 'border-box',
+      border: `1.5px solid ${colors.border}`, fontSize: 14, fontFamily: fonts.body,
+      color: colors.dark, background: colors.white, cursor: 'pointer',
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    },
+    pickerDropdown: {
+      border: `1.5px solid ${colors.border}`, borderRadius: 8, marginTop: 6,
+      maxHeight: 240, overflowY: 'auto', background: colors.white,
+    },
+    storeRow: (checked) => ({
+      display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+      borderBottom: `1px solid ${colors.border}`, cursor: 'pointer',
+      background: checked ? colors.primaryBg : 'transparent',
+    }),
   }
 
   if (isEdit && loadingExisting) {
@@ -255,6 +310,73 @@ export default function CampaignBuilder() {
               onChange={(e) => field('brief_url', e.target.value)}
               placeholder="https://..."
             />
+          </div>
+
+          {/* Store Assignment */}
+          <div style={s.section}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ ...s.label, marginBottom: 0 }}>Assign Stores</label>
+              <span style={{ fontSize: 12, color: colors.midGrey }}>
+                {selectedStoreIds.length === 0
+                  ? 'None selected'
+                  : selectedStoreIds.length === allStores.length
+                  ? 'All stores selected'
+                  : `${selectedStoreIds.length} store${selectedStoreIds.length > 1 ? 's' : ''} selected`}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              style={s.pickerTrigger}
+              onClick={() => setStorePickerOpen((v) => !v)}
+            >
+              <span style={{ color: selectedStoreIds.length === 0 ? colors.lightGrey : colors.dark }}>
+                {selectedStoreIds.length === 0
+                  ? 'Select stores…'
+                  : selectedStoreIds.length === allStores.length
+                  ? '🏬 All stores'
+                  : `🏬 ${selectedStoreIds.length} store${selectedStoreIds.length > 1 ? 's' : ''} selected`}
+              </span>
+              <span style={{ fontSize: 11, color: colors.midGrey }}>{storePickerOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {storePickerOpen && (
+              <div style={s.pickerDropdown}>
+                {/* Select All row */}
+                <label style={{ ...s.storeRow(allSelected), borderBottom: `2px solid ${colors.border}` }}>
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    style={{ accentColor: colors.primary, width: 16, height: 16 }}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: colors.dark }}>All Stores</span>
+                  <span style={{ fontSize: 11, color: colors.midGrey, marginLeft: 'auto' }}>{allStores.length} stores</span>
+                </label>
+                {allStores.length === 0 && (
+                  <div style={{ padding: '12px 14px', fontSize: 13, color: colors.lightGrey }}>No stores found.</div>
+                )}
+                {allStores.map((store) => {
+                  const checked = selectedStoreIds.includes(store.id)
+                  return (
+                    <label key={store.id} style={s.storeRow(checked)}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleStore(store.id)}
+                        style={{ accentColor: colors.primary, width: 16, height: 16 }}
+                      />
+                      <span style={{ fontSize: 13, fontWeight: checked ? 700 : 400, color: checked ? colors.primary : colors.dark }}>
+                        {store.name}
+                      </span>
+                      {store.city && (
+                        <span style={{ fontSize: 11, color: colors.lightGrey, marginLeft: 'auto' }}>{store.city}</span>
+                      )}
+                    </label>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div style={s.actions}>
