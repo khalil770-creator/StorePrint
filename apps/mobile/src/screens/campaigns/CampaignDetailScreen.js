@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -29,8 +29,17 @@ export default function CampaignDetailScreen({ route, navigation }) {
     queryKey: ['campaign', id],
     queryFn: () => client.get(`/campaigns/${id}`).then(r => r.data),
     enabled: !!id,
+    refetchOnMount: true,
+  });
+  const { data: myStore } = useQuery({
+    queryKey: ['my-store'],
+    queryFn: () => client.get('/field/my-store').then(r => r.data),
   });
   const [activeTab, setActiveTab] = useState('Overview');
+
+  const alreadyConfirmed = myStore && (campaign.confirmations || []).some(
+    (c) => c.store_id === myStore.id
+  );
 
   if (isLoading && !route.params?.campaign) {
     return (
@@ -110,19 +119,21 @@ export default function CampaignDetailScreen({ route, navigation }) {
         {activeTab === 'Stores' && (
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Assigned Stores</Text>
-            {(campaign.stores || []).map((s) => (
-              <View key={s.id} style={[styles.storeRow, shadow.sm]}>
-                <View style={styles.storeIcon}>
-                  <Text style={{ fontSize: 18 }}>🏬</Text>
+            {(campaign.store_assignments || []).map((s) => {
+              const confirmed = (campaign.confirmations || []).some((c) => c.store_id === s.store_id);
+              return (
+                <View key={s.store_id} style={[styles.storeRow, shadow.sm]}>
+                  <View style={styles.storeIcon}>
+                    <Text style={{ fontSize: 18 }}>🏬</Text>
+                  </View>
+                  <View style={styles.storeInfo}>
+                    <Text style={styles.storeName}>{s.store_name}</Text>
+                  </View>
+                  <StatusChip status={confirmed ? 'success' : 'inactive'} label={confirmed ? 'Confirmed' : 'Pending'} />
                 </View>
-                <View style={styles.storeInfo}>
-                  <Text style={styles.storeName}>{s.name}</Text>
-                  <Text style={styles.storeCity}>{s.city}</Text>
-                </View>
-                <StatusChip status={s.status} />
-              </View>
-            ))}
-            {(campaign.stores || []).length === 0 && (
+              );
+            })}
+            {(campaign.store_assignments || []).length === 0 && (
               <Text style={styles.emptyText}>No stores assigned.</Text>
             )}
           </View>
@@ -134,17 +145,19 @@ export default function CampaignDetailScreen({ route, navigation }) {
             {(campaign.confirmations || []).map((c) => (
               <View key={c.id} style={[styles.confirmCard, shadow.sm]}>
                 <View style={styles.confirmHeader}>
-                  <Text style={styles.confirmStore}>{c.store}</Text>
-                  <Text style={styles.confirmTime}>{c.confirmedAt}</Text>
+                  <Text style={styles.confirmStore}>{c.store_name || '—'}</Text>
+                  <Text style={styles.confirmTime}>{c.confirmed_at ? new Date(c.confirmed_at).toLocaleString() : '—'}</Text>
                 </View>
-                <Text style={styles.confirmBy}>By: {c.confirmedBy}</Text>
-                <View style={styles.photoRow}>
-                  {Array.from({ length: c.photoCount || 0 }).map((_, i) => (
-                    <View key={i} style={styles.photoThumb}>
-                      <Text style={{ fontSize: 20 }}>📷</Text>
-                    </View>
-                  ))}
-                </View>
+                <Text style={styles.confirmBy}>By: {c.confirmed_by_name || '—'}</Text>
+                {c.gps_verified && (
+                  <Text style={styles.gpsTag}>📍 GPS Verified</Text>
+                )}
+                {c.photo_url ? (
+                  <View style={styles.photoRow}>
+                    <Image source={{ uri: c.photo_url }} style={styles.photoImg} resizeMode="cover" />
+                  </View>
+                ) : null}
+                {c.notes ? <Text style={styles.confirmNotes}>{c.notes}</Text> : null}
               </View>
             ))}
             {(campaign.confirmations || []).length === 0 && (
@@ -157,13 +170,19 @@ export default function CampaignDetailScreen({ route, navigation }) {
       </ScrollView>
 
       <View style={styles.ctaBar}>
-        <TouchableOpacity
-          style={styles.ctaBtn}
-          onPress={() => navigation.navigate('CampaignConfirm', { campaign })}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.ctaBtnText}>✅ Confirm Execution</Text>
-        </TouchableOpacity>
+        {alreadyConfirmed ? (
+          <View style={styles.confirmedBanner}>
+            <Text style={styles.confirmedBannerText}>✅ You have confirmed this campaign</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.ctaBtn}
+            onPress={() => navigation.navigate('CampaignConfirm', { campaign })}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.ctaBtnText}>✅ Confirm Execution</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -212,15 +231,19 @@ const styles = StyleSheet.create({
   storeInfo:      { flex: 1 },
   storeName:      { fontSize: typography.sm, fontWeight: '600', color: colors.dark },
   storeCity:      { fontSize: typography.xs, color: colors.lightGrey, marginTop: 2 },
-  confirmCard:    { backgroundColor: colors.white, borderRadius: radius.md, padding: 14 },
-  confirmHeader:  { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  confirmStore:   { fontSize: typography.sm, fontWeight: '700', color: colors.dark },
-  confirmTime:    { fontSize: typography.xs, color: colors.lightGrey },
-  confirmBy:      { fontSize: typography.xs, color: colors.midGrey, marginBottom: 10 },
-  photoRow:       { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  photoThumb:     { width: 52, height: 52, backgroundColor: colors.inputBg, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
-  emptyText:      { color: colors.lightGrey, textAlign: 'center', marginTop: 24, fontSize: typography.sm },
-  ctaBar:         { padding: 16, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.border },
-  ctaBtn:         { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', ...shadow.green },
-  ctaBtnText:     { color: colors.white, fontSize: typography.md, fontWeight: '700' },
+  confirmCard:        { backgroundColor: colors.white, borderRadius: radius.md, padding: 14 },
+  confirmHeader:      { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  confirmStore:       { fontSize: typography.sm, fontWeight: '700', color: colors.dark, flex: 1 },
+  confirmTime:        { fontSize: typography.xs, color: colors.lightGrey },
+  confirmBy:          { fontSize: typography.xs, color: colors.midGrey, marginBottom: 6 },
+  gpsTag:             { fontSize: typography.xs, color: colors.primary, fontWeight: '600', marginBottom: 6 },
+  photoRow:           { marginTop: 6 },
+  photoImg:           { width: '100%', height: 160, borderRadius: radius.sm },
+  confirmNotes:       { fontSize: typography.xs, color: colors.midGrey, marginTop: 6, fontStyle: 'italic' },
+  emptyText:          { color: colors.lightGrey, textAlign: 'center', marginTop: 24, fontSize: typography.sm },
+  ctaBar:             { padding: 16, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.border },
+  ctaBtn:             { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', ...shadow.green },
+  ctaBtnText:         { color: colors.white, fontSize: typography.md, fontWeight: '700' },
+  confirmedBanner:    { backgroundColor: '#D1FAE5', borderRadius: radius.md, paddingVertical: 14, alignItems: 'center' },
+  confirmedBannerText:{ color: '#065F46', fontSize: typography.md, fontWeight: '700' },
 });

@@ -10,10 +10,15 @@ exports.listCampaigns = async (req, res) => {
     if (status)   { params.push(status);   where += ` AND c.status=$${params.length}`; }
     if (brand_id) { params.push(brand_id); where += ` AND c.brand_id=$${params.length}`; }
     const { rows } = await query(
-      `SELECT c.*, u.name as created_by_name
+      `SELECT c.*, u.name as created_by_name,
+              COUNT(DISTINCT csa.store_id)::int as store_count,
+              COUNT(DISTINCT cc.store_id)::int as confirmed_count
        FROM campaigns c
        LEFT JOIN users u ON u.id = c.created_by
+       LEFT JOIN campaign_store_assignments csa ON csa.campaign_id = c.id
+       LEFT JOIN campaign_confirmations cc ON cc.campaign_id = c.id
        ${where}
+       GROUP BY c.id, u.name
        ORDER BY c.created_at DESC`,
       params
     );
@@ -144,8 +149,8 @@ exports.uploadAsset = async (req, res) => {
 exports.assignStores = async (req, res) => {
   try {
     const { store_ids = [] } = req.body;
-    if (!Array.isArray(store_ids) || !store_ids.length) {
-      return res.status(400).json({ error: 'store_ids array is required' });
+    if (!Array.isArray(store_ids)) {
+      return res.status(400).json({ error: 'store_ids must be an array' });
     }
     const { rows: camp } = await query(
       `SELECT id FROM campaigns WHERE id=$1 AND brand_id=$2`,
@@ -153,12 +158,13 @@ exports.assignStores = async (req, res) => {
     );
     if (!camp.length) return res.status(404).json({ error: 'Campaign not found' });
 
+    // Replace all: delete existing then insert new
+    await query(`DELETE FROM campaign_store_assignments WHERE campaign_id=$1`, [req.params.id]);
     const inserted = [];
     for (const store_id of store_ids) {
       const { rows } = await query(
         `INSERT INTO campaign_store_assignments(campaign_id, store_id, assigned_by)
-         VALUES($1,$2,$3)
-         ON CONFLICT(campaign_id, store_id) DO NOTHING RETURNING *`,
+         VALUES($1,$2,$3) RETURNING *`,
         [req.params.id, store_id, req.user.id]
       );
       if (rows.length) inserted.push(rows[0]);

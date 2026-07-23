@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import client from '../../api/client'
 import { colors, shadow, fonts } from '../../theme'
 import Badge from '../../components/Badge'
@@ -36,8 +36,19 @@ const TYPE_COLORS = {
 export default function CampaignDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const [tab, setTab] = useState('overview')
   const [lightboxImg, setLightboxImg] = useState(null)
+
+  // Store assignment state
+  const [selectedStoreIds, setSelectedStoreIds] = useState(null) // null = not yet initialized
+  const [storesSaving, setStoresSaving] = useState(false)
+  const [storesSaved, setStoresSaved] = useState(false)
+
+  // Asset form state
+  const [assetForm, setAssetForm] = useState({ name: '', file_url: '', file_type: 'PDF' })
+  const [assetSaving, setAssetSaving] = useState(false)
+  const [assetError, setAssetError] = useState('')
 
   const { data: raw, isLoading, error } = useQuery({
     queryKey: ['campaign', id],
@@ -48,6 +59,63 @@ export default function CampaignDetail() {
   const confirmations = campaign.confirmations || []
   const assignments   = campaign.store_assignments || []
   const assets        = campaign.assets || []
+
+  // Initialize selectedStoreIds from assignments when data loads
+  useEffect(() => {
+    if (assignments.length > 0 && selectedStoreIds === null) {
+      setSelectedStoreIds(assignments.map((a) => a.store_id))
+    } else if (campaign.id && selectedStoreIds === null) {
+      setSelectedStoreIds([])
+    }
+  }, [campaign.id, assignments.length])
+
+  const { data: storesRaw } = useQuery({
+    queryKey: ['stores-all'],
+    queryFn: () => client.get('/stores'),
+  })
+  const allStores = getData(storesRaw) || []
+  const allStoresList = Array.isArray(allStores) ? allStores : (allStores?.data || [])
+
+  async function handleSaveStores() {
+    setStoresSaving(true)
+    try {
+      await client.post(`/campaigns/${id}/stores`, { store_ids: selectedStoreIds || [] })
+      qc.invalidateQueries({ queryKey: ['campaign', id] })
+      qc.invalidateQueries({ queryKey: ['campaigns'] })
+      setStoresSaved(true)
+      setTimeout(() => setStoresSaved(false), 2000)
+    } catch { alert('Failed to save store assignments.') }
+    finally { setStoresSaving(false) }
+  }
+
+  function toggleStore(storeId) {
+    setSelectedStoreIds((prev) => {
+      const p = prev || []
+      return p.includes(storeId) ? p.filter((x) => x !== storeId) : [...p, storeId]
+    })
+  }
+
+  function toggleAll() {
+    const allIds = allStoresList.map((s) => s.id)
+    const allSelected = allIds.every((sid) => (selectedStoreIds || []).includes(sid))
+    setSelectedStoreIds(allSelected ? [] : allIds)
+  }
+
+  async function handleAddAsset(e) {
+    e.preventDefault()
+    if (!assetForm.name.trim() || !assetForm.file_url.trim()) {
+      setAssetError('Name and URL are required')
+      return
+    }
+    setAssetError('')
+    setAssetSaving(true)
+    try {
+      await client.post(`/campaigns/${id}/assets`, assetForm)
+      qc.invalidateQueries({ queryKey: ['campaign', id] })
+      setAssetForm({ name: '', file_url: '', file_type: 'PDF' })
+    } catch { setAssetError('Failed to add asset.') }
+    finally { setAssetSaving(false) }
+  }
 
   const totalStores    = assignments.length || campaign.store_count || 0
   const confirmedCount = confirmations.length
@@ -271,71 +339,157 @@ export default function CampaignDetail() {
 
       {/* ── Store Assignments Tab ── */}
       {tab === 'stores' && (
-        <>
-          {assignments.length === 0 ? (
-            <div style={s.empty}>No stores assigned to this campaign.</div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={s.table}>
-                <thead>
-                  <tr>
-                    <th style={s.th}>Store</th>
-                    <th style={s.th}>Assigned At</th>
-                    <th style={s.th}>Confirmation Status</th>
-                    <th style={s.th}>Confirmed At</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assignments.map((a) => {
-                    const conf = confirmations.find((c) => c.store_id === a.store_id)
-                    return (
-                      <tr key={a.id}>
-                        <td style={{ ...s.td, fontWeight: 700 }}>{a.store_name || '—'}</td>
-                        <td style={{ ...s.td, fontFamily: fonts.mono, fontSize: 12 }}>{fmtDate(a.assigned_at || a.created_at)}</td>
-                        <td style={s.td}>
-                          {conf
-                            ? <span style={s.chip('#D1FAE5', '#065F46')}>✅ Confirmed</span>
-                            : <span style={s.chip('#FEF3C7', '#92400E')}>⏳ Pending</span>
-                          }
-                        </td>
-                        <td style={{ ...s.td, fontSize: 12, color: colors.midGrey }}>
-                          {conf ? fmtDateTime(conf.confirmed_at) : '—'}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
+          {/* Left: assignment editor */}
+          <div style={{ background: colors.white, borderRadius: 12, padding: 24, boxShadow: shadow.sm, border: `1px solid ${colors.border}` }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: colors.dark, marginBottom: 4 }}>Assign Stores</div>
+            <div style={{ fontSize: 12, color: colors.midGrey, marginBottom: 16 }}>Select which stores this campaign applies to.</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <span style={{ fontSize: 12, color: colors.midGrey }}>{(selectedStoreIds || []).length} of {allStoresList.length} selected</span>
+              <button
+                type="button"
+                onClick={toggleAll}
+                style={{ fontSize: 12, color: colors.primary, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}
+              >
+                {allStoresList.length > 0 && allStoresList.every((s) => (selectedStoreIds || []).includes(s.id)) ? 'Deselect All' : 'Select All'}
+              </button>
             </div>
-          )}
-        </>
+            <div style={{ maxHeight: 320, overflowY: 'auto', border: `1px solid ${colors.border}`, borderRadius: 8 }}>
+              {allStoresList.length === 0 && (
+                <div style={{ padding: 16, fontSize: 13, color: colors.lightGrey }}>No stores found.</div>
+              )}
+              {allStoresList.map((store) => {
+                const checked = (selectedStoreIds || []).includes(store.id)
+                return (
+                  <label key={store.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: `1px solid ${colors.border}`, cursor: 'pointer', background: checked ? colors.primaryBg : 'transparent' }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleStore(store.id)}
+                      style={{ accentColor: colors.primary, width: 16, height: 16 }}
+                    />
+                    <span style={{ fontSize: 13, fontWeight: checked ? 700 : 400, color: checked ? colors.primary : colors.dark }}>{store.name}</span>
+                    {store.city && <span style={{ fontSize: 11, color: colors.lightGrey, marginLeft: 'auto' }}>{store.city}</span>}
+                  </label>
+                )
+              })}
+            </div>
+            <button
+              onClick={handleSaveStores}
+              disabled={storesSaving}
+              style={{ marginTop: 16, padding: '9px 20px', background: storesSaved ? colors.success : colors.primary, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', width: '100%' }}
+            >
+              {storesSaving ? 'Saving…' : storesSaved ? '✅ Saved!' : 'Save Store Assignments'}
+            </button>
+          </div>
+
+          {/* Right: current status table */}
+          <div>
+            {assignments.length === 0 ? (
+              <div style={s.empty}>No stores assigned yet. Use the panel to assign stores.</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={s.table}>
+                  <thead>
+                    <tr>
+                      <th style={s.th}>Store</th>
+                      <th style={s.th}>Status</th>
+                      <th style={s.th}>Confirmed At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assignments.map((a) => {
+                      const conf = confirmations.find((c) => c.store_id === a.store_id)
+                      return (
+                        <tr key={a.id}>
+                          <td style={{ ...s.td, fontWeight: 700 }}>{a.store_name || '—'}</td>
+                          <td style={s.td}>
+                            {conf
+                              ? <span style={s.chip('#D1FAE5', '#065F46')}>✅ Confirmed</span>
+                              : <span style={s.chip('#FEF3C7', '#92400E')}>⏳ Pending</span>
+                            }
+                          </td>
+                          <td style={{ ...s.td, fontSize: 12, color: colors.midGrey }}>
+                            {conf ? fmtDateTime(conf.confirmed_at) : '—'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ── Assets Tab ── */}
       {tab === 'assets' && (
-        <>
-          {assets.length === 0 ? (
-            <div style={s.empty}>No assets attached to this campaign.</div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
-              {assets.map((a) => (
-                <div key={a.id} style={{ background: colors.white, borderRadius: 10, padding: 16, boxShadow: shadow.sm, border: `1px solid ${colors.border}` }}>
-                  <div style={{ fontSize: 32, marginBottom: 10 }}>
-                    {a.type === 'PDF' ? '📄' : a.type === 'PSD' ? '🎨' : a.type === 'ZIP' ? '📦' : '🖼️'}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
+          {/* Left: add asset form */}
+          <div style={{ background: colors.white, borderRadius: 12, padding: 24, boxShadow: shadow.sm, border: `1px solid ${colors.border}` }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: colors.dark, marginBottom: 16 }}>Add Asset</div>
+            {assetError && <div style={{ background: '#FEE2E2', color: '#991B1B', borderRadius: 8, padding: '8px 12px', fontSize: 12, marginBottom: 12 }}>{assetError}</div>}
+            <form onSubmit={handleAddAsset} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: colors.dark, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 4 }}>Asset Name *</label>
+                <input
+                  style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${colors.border}`, borderRadius: 8, fontSize: 13, fontFamily: fonts.body, boxSizing: 'border-box' }}
+                  placeholder="e.g. Azadi Sale Poster A2"
+                  value={assetForm.name}
+                  onChange={(e) => setAssetForm((f) => ({ ...f, name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: colors.dark, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 4 }}>File URL *</label>
+                <input
+                  style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${colors.border}`, borderRadius: 8, fontSize: 13, fontFamily: fonts.body, boxSizing: 'border-box' }}
+                  placeholder="https://..."
+                  value={assetForm.file_url}
+                  onChange={(e) => setAssetForm((f) => ({ ...f, file_url: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: colors.dark, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 4 }}>File Type</label>
+                <select
+                  style={{ width: '100%', padding: '9px 12px', border: `1.5px solid ${colors.border}`, borderRadius: 8, fontSize: 13, fontFamily: fonts.body }}
+                  value={assetForm.file_type}
+                  onChange={(e) => setAssetForm((f) => ({ ...f, file_type: e.target.value }))}
+                >
+                  {['PDF', 'Image', 'Video', 'PSD', 'ZIP', 'Other'].map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <button type="submit" disabled={assetSaving} style={{ padding: '9px 0', background: colors.primary, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                {assetSaving ? 'Adding…' : '+ Add Asset'}
+              </button>
+            </form>
+          </div>
+
+          {/* Right: existing assets */}
+          <div>
+            {assets.length === 0 ? (
+              <div style={s.empty}>No assets yet. Add one using the form.</div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
+                {assets.map((a) => (
+                  <div key={a.id} style={{ background: colors.white, borderRadius: 10, padding: 16, boxShadow: shadow.sm, border: `1px solid ${colors.border}` }}>
+                    <div style={{ fontSize: 32, marginBottom: 10 }}>
+                      {a.file_type === 'PDF' ? '📄' : a.file_type === 'PSD' ? '🎨' : a.file_type === 'ZIP' ? '📦' : a.file_type === 'Video' ? '🎬' : '🖼️'}
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: colors.dark, marginBottom: 4 }}>{a.name}</div>
+                    <div style={{ fontSize: 11, color: colors.lightGrey, marginBottom: 8 }}>{a.file_type}</div>
+                    {a.file_url && (
+                      <a href={a.file_url} target="_blank" rel="noreferrer"
+                        style={{ fontSize: 12, color: colors.primary, fontWeight: 700, textDecoration: 'none' }}>
+                        ⬇️ Download
+                      </a>
+                    )}
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: colors.dark, marginBottom: 4 }}>{a.name}</div>
-                  {a.size && <div style={{ fontSize: 11, color: colors.lightGrey }}>{a.size}</div>}
-                  {a.file_url && (
-                    <a href={a.file_url} target="_blank" rel="noreferrer"
-                      style={{ display: 'inline-block', marginTop: 10, fontSize: 12, color: colors.primary, fontWeight: 700 }}>
-                      ⬇️ Download
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
