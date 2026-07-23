@@ -25,6 +25,7 @@ router.get('/rosters',                requirePermission('field', 'read'),   ctrl
 router.post('/rosters',               requirePermission('field', 'create'), ctrl.createRoster);
 router.get('/rosters/:id',            requirePermission('field', 'read'),   ctrl.getRoster);
 router.post('/rosters/:id/publish',   requirePermission('field', 'update'), ctrl.publishRoster);
+router.delete('/rosters/:id',         requirePermission('field', 'delete'), ctrl.deleteRoster);
 router.post('/rosters/:id/copy',      requirePermission('field', 'create'), ctrl.copyRoster);
 
 // Shifts — GET own shifts is open to all authenticated users

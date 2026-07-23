@@ -70,6 +70,18 @@ export default function RosterPage() {
     onError: () => alert('Failed to create roster.'),
   })
 
+  const [deletingId, setDeletingId] = useState(null)
+
+  const deleteRoster = async (r) => {
+    if (!window.confirm(`Delete roster "${r.name}"? This cannot be undone.`)) return
+    setDeletingId(r.id)
+    try {
+      await client.delete(`/field/rosters/${r.id}`)
+      qc.invalidateQueries({ queryKey: ['rosters'] })
+    } catch { alert('Failed to delete roster.') }
+    finally { setDeletingId(null) }
+  }
+
   const publishRoster = useMutation({
     mutationFn: (id) => client.post(`/field/rosters/${id}/publish`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['rosters'] }),
@@ -130,6 +142,7 @@ export default function RosterPage() {
     cardFooter: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4, flexWrap: 'wrap' },
     viewBtn: { padding: '6px 14px', background: colors.primaryBg, color: colors.primary, border: `1.5px solid ${colors.primary}`, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
     copyBtn: { padding: '6px 12px', background: '#EFF6FF', color: '#1D4ED8', border: '1.5px solid #1D4ED8', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
+    deleteBtn: { padding: '6px 12px', background: 'transparent', color: colors.error || '#EF4444', border: `1.5px solid ${colors.error || '#EF4444'}`, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
     publishBtn: { padding: '6px 14px', background: colors.successBg || '#D1FAE5', color: colors.success || '#10B981', border: `1.5px solid ${colors.success || '#10B981'}`, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer' },
     backBtn: { padding: '7px 16px', background: colors.white, color: colors.midGrey, border: `1.5px solid ${colors.border}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 20 },
     table: { width: '100%', borderCollapse: 'collapse', background: colors.white, borderRadius: 12, overflow: 'hidden', boxShadow: shadow.sm },
@@ -186,6 +199,11 @@ export default function RosterPage() {
                   <div style={s.cardFooter}>
                     {r.status !== 'published' && (
                       <button style={s.publishBtn} onClick={() => publishRoster.mutate(r.id)}>Publish</button>
+                    )}
+                    {r.status !== 'published' && (
+                      <button style={s.deleteBtn} disabled={deletingId === r.id} onClick={() => deleteRoster(r)}>
+                        {deletingId === r.id ? '…' : 'Delete'}
+                      </button>
                     )}
                     <button style={s.copyBtn} onClick={() => { setCopyRosterTarget(r); setCopyStoreIds([]); setShowCopyModal(true) }}>Copy to Stores</button>
                     <button style={s.viewBtn} onClick={() => setSelectedRoster(r)}>View Shifts</button>

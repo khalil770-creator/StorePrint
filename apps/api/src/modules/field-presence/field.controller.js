@@ -268,6 +268,21 @@ exports.copyRoster = async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to copy roster' }); }
 };
 
+exports.deleteRoster = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT rs.id, rs.status FROM roster_schedules rs
+       JOIN stores s ON s.id = rs.store_id
+       WHERE rs.id=$1 AND s.brand_id=$2`,
+      [req.params.id, req.user.brand_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Roster not found' });
+    if (rows[0].status === 'published') return res.status(400).json({ error: 'Published rosters cannot be deleted' });
+    await query(`DELETE FROM roster_schedules WHERE id=$1`, [req.params.id]);
+    res.json({ message: 'Roster deleted' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to delete roster' }); }
+};
+
 exports.publishRoster = async (req, res) => {
   try {
     await query(
