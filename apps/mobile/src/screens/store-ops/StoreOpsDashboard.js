@@ -78,8 +78,8 @@ export default function StoreOpsDashboard({ navigation }) {
       icon: '🌿',
       description: 'Lighting, scent, cleanliness and atmosphere checks',
       stats: [
-        { label: 'Open Issues',   value: isLoading ? '…' : String(envData.open_issues      ?? 0) },
-        { label: 'Health Score',  value: isLoading ? '…' : String(envData.avg_health_score ?? 0) },
+        { label: 'Open Issues',   value: isLoading ? '…' : String(envData.open_issues  ?? 0) },
+        { label: 'Total Issues',  value: isLoading ? '…' : String(envData.total_issues ?? 0) },
       ],
       color: '#1ABC9C',
       screen: 'EnvironmentDashboard',

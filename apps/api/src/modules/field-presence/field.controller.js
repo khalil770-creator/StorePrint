@@ -399,14 +399,15 @@ exports.dashboard = async (req, res) => {
         LEFT JOIN campaign_confirmations cc ON cc.campaign_id = c.id
         WHERE c.brand_id=$1`, [bid]),
 
-      // VM tasks: pending, overdue, avg score
+      // VM tasks: pending, overdue, avg compliance score from submissions
       query(`
         SELECT
           COUNT(CASE WHEN vt.status='pending' THEN 1 END)::int                      AS pending_tasks,
           COUNT(CASE WHEN vt.status='pending' AND vt.due_date < NOW() THEN 1 END)::int AS overdue_tasks,
-          COALESCE(ROUND(AVG(vt.score))::int, 0)                                   AS avg_score
+          COALESCE(ROUND(AVG(vs.compliance_score))::int, 0)                         AS avg_score
         FROM vm_tasks vt
         JOIN stores s ON s.id = vt.store_id
+        LEFT JOIN vm_submissions vs ON vs.task_id = vt.id
         WHERE s.brand_id=$1`, [bid]),
 
       // Signage: template count, open print requests
@@ -417,11 +418,11 @@ exports.dashboard = async (req, res) => {
         FROM print_requests pr
         WHERE pr.brand_id=$1`, [bid]),
 
-      // Environment: open issues, avg health score
+      // Environment: open issues (no score column — just counts)
       query(`
         SELECT
           COUNT(CASE WHEN ei.status='open' THEN 1 END)::int                         AS open_issues,
-          COALESCE(ROUND(AVG(ei.score))::int, 0)                                    AS avg_health_score
+          COUNT(*)::int                                                              AS total_issues
         FROM environment_issues ei
         WHERE ei.brand_id=$1`, [bid]),
     ]);
@@ -452,8 +453,8 @@ exports.dashboard = async (req, res) => {
         print_requests: signage.rows[0].open_print_requests,
       },
       environment: {
-        open_issues:      environment.rows[0].open_issues,
-        avg_health_score: environment.rows[0].avg_health_score,
+        open_issues:  environment.rows[0].open_issues,
+        total_issues: environment.rows[0].total_issues,
       },
     });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to load dashboard' }); }
