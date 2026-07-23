@@ -1,104 +1,108 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import { colors, typography, radius, shadow } from '../../constants/theme';
 import StatCard  from '../../components/common/StatCard';
 import AppHeader from '../../components/common/AppHeader';
 import { usePermissions } from '../../utils/permissions';
+import client from '../../api/client';
 
-// key must match the module key in permissions.js / roles.permissions
-const SECTIONS = [
-  {
-    key: 'campaigns',
-    title: 'Campaigns',
-    icon: '📣',
-    description: 'Manage brand campaigns and store confirmations',
-    stats: [
-      { label: 'Active', value: '4' },
-      { label: 'Upcoming', value: '2' },
-      { label: 'Stores Confirmed', value: '61%' },
-    ],
-    color: '#0052CC',
-    screen: 'CampaignFeed',
-  },
-  {
-    key: 'vm',
-    title: 'Visual Merchandising',
-    icon: '🖼️',
-    description: 'Track VM tasks and planogram compliance',
-    stats: [
-      { label: 'Pending', value: '12' },
-      { label: 'Overdue', value: '3' },
-      { label: 'Avg Score', value: '84%' },
-    ],
-    color: '#4A90E2',
-    screen: 'VMDashboard',
-  },
-  {
-    key: 'signage',
-    title: 'Signage',
-    icon: '🪧',
-    description: 'Browse templates, request prints and log installations',
-    stats: [
-      { label: 'Templates', value: '28' },
-      { label: 'Print Requests', value: '7' },
-      { label: 'Installed Today', value: '5' },
-    ],
-    color: '#F5A623',
-    screen: 'SignageLibrary',
-  },
-  {
-    key: 'training',
-    title: 'Training',
-    icon: '🎓',
-    description: 'Courses, certifications and staff development',
-    stats: [
-      { label: 'Enrolled', value: '3' },
-      { label: 'Completed', value: '1' },
-      { label: 'Certs Earned', value: '2' },
-    ],
-    color: '#9B59B6',
-    screen: 'TrainingDashboard',
-  },
-  {
-    key: 'environment',
-    title: 'Store Environment',
-    icon: '🌿',
-    description: 'Lighting, scent, cleanliness and atmosphere checks',
-    stats: [
-      { label: 'Health Score', value: '84' },
-      { label: 'Open Issues', value: '15' },
-      { label: 'Checks Today', value: '3' },
-    ],
-    color: '#1ABC9C',
-    screen: 'EnvironmentDashboard',
-  },
-  {
-    key: 'cx',
-    title: 'Customer Experience',
-    icon: '⭐',
-    description: 'NPS, CSAT, reviews and customer feedback',
-    stats: [
-      { label: 'NPS', value: '52' },
-      { label: 'CSAT', value: '4.2' },
-      { label: 'Reviews', value: '24' },
-    ],
-    color: '#E67E22',
-    screen: 'CXDashboard',
-  },
-];
 
 export default function StoreOpsDashboard({ navigation }) {
   const { hasAccess, isAdmin } = usePermissions();
+
+  const { data: dash, isLoading } = useQuery({
+    queryKey: ['field-dashboard'],
+    queryFn: () => client.get('/field/dashboard').then(r => r.data),
+    refetchOnMount: true,
+  });
+
+  const summary   = dash?.summary   || {};
+  const campData  = dash?.campaigns || {};
+  const vmData    = dash?.vm        || {};
+  const sigData   = dash?.signage   || {};
+  const envData   = dash?.environment || {};
+
+  const SECTIONS = [
+    {
+      key: 'campaigns',
+      title: 'Campaigns',
+      icon: '📣',
+      description: 'Manage brand campaigns and store confirmations',
+      stats: [
+        { label: 'Active',           value: isLoading ? '…' : String(campData.active   ?? 0) },
+        { label: 'Upcoming',         value: isLoading ? '…' : String(campData.upcoming ?? 0) },
+        { label: 'Stores Confirmed', value: isLoading ? '…' : `${campData.confirmed_pct ?? 0}%` },
+      ],
+      color: '#0052CC',
+      screen: 'CampaignFeed',
+    },
+    {
+      key: 'vm',
+      title: 'Visual Merchandising',
+      icon: '🖼️',
+      description: 'Track VM tasks and planogram compliance',
+      stats: [
+        { label: 'Pending',   value: isLoading ? '…' : String(vmData.pending   ?? 0) },
+        { label: 'Overdue',   value: isLoading ? '…' : String(vmData.overdue   ?? 0) },
+        { label: 'Avg Score', value: isLoading ? '…' : `${vmData.avg_score ?? 0}%` },
+      ],
+      color: '#4A90E2',
+      screen: 'VMDashboard',
+    },
+    {
+      key: 'signage',
+      title: 'Signage',
+      icon: '🪧',
+      description: 'Browse templates, request prints and log installations',
+      stats: [
+        { label: 'Templates',      value: isLoading ? '…' : String(sigData.templates      ?? 0) },
+        { label: 'Print Requests', value: isLoading ? '…' : String(sigData.print_requests ?? 0) },
+      ],
+      color: '#F5A623',
+      screen: 'SignageLibrary',
+    },
+    {
+      key: 'training',
+      title: 'Training',
+      icon: '🎓',
+      description: 'Courses, certifications and staff development',
+      stats: [],
+      color: '#9B59B6',
+      screen: 'TrainingDashboard',
+    },
+    {
+      key: 'environment',
+      title: 'Store Environment',
+      icon: '🌿',
+      description: 'Lighting, scent, cleanliness and atmosphere checks',
+      stats: [
+        { label: 'Open Issues',   value: isLoading ? '…' : String(envData.open_issues      ?? 0) },
+        { label: 'Health Score',  value: isLoading ? '…' : String(envData.avg_health_score ?? 0) },
+      ],
+      color: '#1ABC9C',
+      screen: 'EnvironmentDashboard',
+    },
+    {
+      key: 'cx',
+      title: 'Customer Experience',
+      icon: '⭐',
+      description: 'NPS, CSAT, reviews and customer feedback',
+      stats: [],
+      color: '#E67E22',
+      screen: 'CXDashboard',
+    },
+  ];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <AppHeader subtitle="Store operations & modules" />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.summaryRow}>
-          <StatCard label="Active Campaigns" value="4" icon="📣" />
-          <StatCard label="VM Tasks Pending" value="12" icon="🖼️" />
-          <StatCard label="Open Print Reqs"  value="7"  icon="🖨️" />
+          <StatCard label="Active Campaigns" value={isLoading ? '…' : String(summary.active_campaigns   ?? 0)} icon="📣" />
+          <StatCard label="VM Tasks Pending" value={isLoading ? '…' : String(summary.vm_tasks_pending   ?? 0)} icon="🖼️" />
+          <StatCard label="Open Print Reqs"  value={isLoading ? '…' : String(summary.open_print_requests ?? 0)} icon="🖨️" />
         </View>
 
         <Text style={styles.sectionTitle}>Sections</Text>

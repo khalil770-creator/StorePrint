@@ -5,6 +5,9 @@ const ctrl = require('./field.controller');
 
 router.use(authenticate);
 
+// Dashboard summary
+router.get('/dashboard', ctrl.dashboard);
+
 // My store
 router.get('/my-store',       ctrl.myStore);
 router.get('/my-store/staff', ctrl.myStoreStaff);

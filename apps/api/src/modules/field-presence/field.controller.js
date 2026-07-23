@@ -382,6 +382,83 @@ exports.requestSwap = async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to request swap' }); }
 };
 
+exports.dashboard = async (req, res) => {
+  try {
+    const bid = req.user.brand_id;
+
+    const [campaigns, vm, signage, environment] = await Promise.all([
+      // Campaigns: active count, upcoming (draft), confirmed %
+      query(`
+        SELECT
+          COUNT(CASE WHEN status='active' THEN 1 END)::int                          AS active_campaigns,
+          COUNT(CASE WHEN status='draft' THEN 1 END)::int                           AS upcoming_campaigns,
+          COUNT(DISTINCT csa.store_id)::int                                         AS total_assigned_stores,
+          COUNT(DISTINCT cc.store_id)::int                                          AS confirmed_stores
+        FROM campaigns c
+        LEFT JOIN campaign_store_assignments csa ON csa.campaign_id = c.id
+        LEFT JOIN campaign_confirmations cc ON cc.campaign_id = c.id
+        WHERE c.brand_id=$1`, [bid]),
+
+      // VM tasks: pending, overdue, avg score
+      query(`
+        SELECT
+          COUNT(CASE WHEN status='pending' THEN 1 END)::int                         AS pending_tasks,
+          COUNT(CASE WHEN status='pending' AND due_date < NOW() THEN 1 END)::int    AS overdue_tasks,
+          COALESCE(ROUND(AVG(score))::int, 0)                                       AS avg_score
+        FROM vm_tasks vt
+        JOIN stores s ON s.id = vt.store_id
+        WHERE s.brand_id=$1`, [bid]),
+
+      // Signage: template count, open print requests
+      query(`
+        SELECT
+          (SELECT COUNT(*)::int FROM signage_templates WHERE brand_id=$1 AND is_active=true) AS template_count,
+          COUNT(CASE WHEN pr.status IN ('pending','approved','in_production') THEN 1 END)::int AS open_print_requests
+        FROM print_requests pr
+        WHERE pr.brand_id=$1`, [bid]),
+
+      // Environment: open issues, avg health score
+      query(`
+        SELECT
+          COUNT(CASE WHEN status='open' THEN 1 END)::int                            AS open_issues,
+          COALESCE(ROUND(AVG(score))::int, 0)                                       AS avg_health_score
+        FROM environment_issues ei
+        WHERE ei.brand_id=$1`, [bid]),
+    ]);
+
+    const c = campaigns.rows[0];
+    const confirmedPct = c.total_assigned_stores > 0
+      ? Math.round((c.confirmed_stores / c.total_assigned_stores) * 100)
+      : 0;
+
+    res.json({
+      summary: {
+        active_campaigns:   c.active_campaigns,
+        vm_tasks_pending:   vm.rows[0].pending_tasks,
+        open_print_requests: signage.rows[0].open_print_requests,
+      },
+      campaigns: {
+        active:    c.active_campaigns,
+        upcoming:  c.upcoming_campaigns,
+        confirmed_pct: confirmedPct,
+      },
+      vm: {
+        pending:   vm.rows[0].pending_tasks,
+        overdue:   vm.rows[0].overdue_tasks,
+        avg_score: vm.rows[0].avg_score,
+      },
+      signage: {
+        templates:      signage.rows[0].template_count,
+        print_requests: signage.rows[0].open_print_requests,
+      },
+      environment: {
+        open_issues:      environment.rows[0].open_issues,
+        avg_health_score: environment.rows[0].avg_health_score,
+      },
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to load dashboard' }); }
+};
+
 exports.reviewSwap = async (req, res) => {
   try {
     const { status } = req.body; // approved or rejected
@@ -408,3 +485,4 @@ exports.reviewSwap = async (req, res) => {
     res.json({ message: `Swap request ${status}` });
   } catch (err) { res.status(500).json({ error: 'Failed to review swap' }); }
 };
+
