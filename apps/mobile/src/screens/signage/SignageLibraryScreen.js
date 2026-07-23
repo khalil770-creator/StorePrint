@@ -12,10 +12,10 @@ import client from '../../api/client';
 const CATEGORIES = ['All', 'Window', 'In-Store', 'POS', 'Digital'];
 
 const CATEGORY_COLORS = {
-  Window: '#4A90E2',
-  'In-Store': '#0052CC',
-  POS: '#F5A623',
-  Digital: '#9B59B6',
+  window:    '#4A90E2',
+  'in-store':'#2e7d32',
+  pos:       '#F5A623',
+  digital:   '#9B59B6',
 };
 
 export default function SignageLibraryScreen({ navigation }) {
@@ -29,7 +29,8 @@ export default function SignageLibraryScreen({ navigation }) {
 
   const filtered = templates.filter((t) => {
     if (activeCategory === 'All') return true;
-    return t.type === activeCategory || t.category === activeCategory;
+    const cat = (t.category || t.type || '').toLowerCase();
+    return cat === activeCategory.toLowerCase().replace(' ', '-');
   });
 
   if (isLoading) {
@@ -66,8 +67,9 @@ export default function SignageLibraryScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={<EmptyState icon="🪧" message="No templates found" />}
         renderItem={({ item }) => {
-          const cat = item.type || item.category;
+          const cat = (item.category || item.type || '').toLowerCase();
           const catColor = CATEGORY_COLORS[cat] || colors.midGrey;
+          const catLabel = item.category || item.type || '—';
           return (
             <TouchableOpacity
               style={[styles.card, shadow.sm]}
@@ -80,7 +82,7 @@ export default function SignageLibraryScreen({ navigation }) {
               <View style={styles.cardBody}>
                 <Text style={styles.cardTitle} numberOfLines={2}>{item.name || item.title}</Text>
                 <View style={[styles.catBadge, { backgroundColor: catColor + '18' }]}>
-                  <Text style={[styles.catText, { color: catColor }]}>{cat}</Text>
+                  <Text style={[styles.catText, { color: catColor }]}>{catLabel}</Text>
                 </View>
                 <Text style={styles.dimensions}>{item.dimensions}</Text>
               </View>

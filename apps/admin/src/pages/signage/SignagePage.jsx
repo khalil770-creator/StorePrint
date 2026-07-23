@@ -21,14 +21,13 @@ const TAB_STYLE = (active) => ({
   fontFamily: fonts.body,
 })
 
-const CATEGORIES = ['window', 'floor', 'counter', 'wall', 'digital']
+const CATEGORIES = ['window', 'in-store', 'pos', 'digital']
 
 const CAT_COLORS = {
-  window:  { bg: '#e8f4fd', text: '#1a73e8' },
-  floor:   { bg: '#e8f5e9', text: '#2e7d32' },
-  counter: { bg: '#fff8e1', text: '#f57f17' },
-  wall:    { bg: '#f3e8fd', text: '#7b1fa2' },
-  digital: { bg: '#fce4ec', text: '#c62828' },
+  window:    { bg: '#e8f4fd', text: '#1a73e8' },
+  'in-store':{ bg: '#e8f5e9', text: '#2e7d32' },
+  pos:       { bg: '#fff8e1', text: '#f57f17' },
+  digital:   { bg: '#fce4ec', text: '#c62828' },
 }
 
 function CatChip({ category }) {
@@ -77,9 +76,18 @@ const INPUT = {
 const TEXTAREA = { ...INPUT, resize: 'vertical', minHeight: 72 }
 const SELECT_STYLE = { ...INPUT, cursor: 'pointer' }
 
+const STATUS_COLORS = {
+  pending:       { bg: '#F3F4F6', text: '#6B7280' },
+  approved:      { bg: '#FEF3C7', text: '#D97706' },
+  in_production: { bg: '#DBEAFE', text: '#1D4ED8' },
+  delivered:     { bg: '#D1FAE5', text: '#065F46' },
+  cancelled:     { bg: '#FEE2E2', text: '#991B1B' },
+}
+
 export default function SignagePage() {
   const [tab, setTab] = useState('templates')
   const [showModal, setShowModal] = useState(false)
+  const [savedId, setSavedId] = useState(null)
   const qc = useQueryClient()
 
   // ── Templates ──
@@ -120,7 +128,11 @@ export default function SignagePage() {
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }) => client.patch(`/signage/print-requests/${id}/status`, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['signage-print-requests'] }),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ['signage-print-requests'] })
+      setSavedId(id)
+      setTimeout(() => setSavedId(null), 2000)
+    },
   })
 
   const s = {
@@ -239,17 +251,29 @@ export default function SignagePage() {
                       <td style={s.td}>{r.template_title || r.template_id || '—'}</td>
                       <td style={{ ...s.td, fontFamily: fonts.mono }}>{r.quantity ?? '—'}</td>
                       <td style={s.td}>
-                        <select
-                          style={s.statusSelect}
-                          value={r.status}
-                          onChange={(e) => updateStatus.mutate({ id: r.id, status: e.target.value })}
-                        >
-                          <option value="pending">pending</option>
-                          <option value="approved">approved</option>
-                          <option value="in_production">in_production</option>
-                          <option value="delivered">delivered</option>
-                          <option value="cancelled">cancelled</option>
-                        </select>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <select
+                            style={{
+                              ...s.statusSelect,
+                              background: STATUS_COLORS[r.status]?.bg || '#F3F4F6',
+                              color: STATUS_COLORS[r.status]?.text || colors.dark,
+                              fontWeight: 700,
+                              border: `1.5px solid ${STATUS_COLORS[r.status]?.text || colors.border}`,
+                            }}
+                            value={r.status}
+                            onChange={(e) => updateStatus.mutate({ id: r.id, status: e.target.value })}
+                            disabled={updateStatus.isPending}
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="in_production">In Production</option>
+                            <option value="delivered">Delivered</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
+                          {savedId === r.id && (
+                            <span style={{ fontSize: 11, color: colors.success, fontWeight: 700 }}>✓ Saved</span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ ...s.td, fontFamily: fonts.mono, fontSize: 12, color: colors.midGrey }}>
                         {r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}
