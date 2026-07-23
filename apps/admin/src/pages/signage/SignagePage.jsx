@@ -127,7 +127,7 @@ export default function SignagePage() {
   const requests = Array.isArray(getData(rawRequests)) ? getData(rawRequests) : []
 
   const updateStatus = useMutation({
-    mutationFn: ({ id, status }) => client.patch(`/signage/print-requests/${id}/status`, { status }),
+    mutationFn: ({ id, status }) => client.put(`/signage/print-requests/${id}/status`, { status }),
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: ['signage-print-requests'] })
       setSavedId(id)

@@ -9,13 +9,14 @@ import EmptyState from '../../components/common/EmptyState';
 import { colors, typography, radius, shadow } from '../../constants/theme';
 import client from '../../api/client';
 
-const CATEGORIES = ['All', 'Window', 'In-Store', 'POS', 'Digital'];
-
 const CATEGORY_COLORS = {
   window:    '#4A90E2',
   'in-store':'#2e7d32',
   pos:       '#F5A623',
   digital:   '#9B59B6',
+  counter:   '#F5A623',
+  floor:     '#2e7d32',
+  wall:      '#7b1fa2',
 };
 
 export default function SignageLibraryScreen({ navigation }) {
@@ -27,10 +28,14 @@ export default function SignageLibraryScreen({ navigation }) {
   });
   const templates = Array.isArray(data) ? data : (data?.data || []);
 
+  // Build tabs dynamically from actual categories in DB
+  const categories = ['All', ...Array.from(new Set(templates.map((t) => t.category || t.type).filter(Boolean)))
+    .map((c) => c.charAt(0).toUpperCase() + c.slice(1))];
+
   const filtered = templates.filter((t) => {
     if (activeCategory === 'All') return true;
     const cat = (t.category || t.type || '').toLowerCase();
-    return cat === activeCategory.toLowerCase().replace(' ', '-');
+    return cat === activeCategory.toLowerCase();
   });
 
   if (isLoading) {
@@ -47,7 +52,7 @@ export default function SignageLibraryScreen({ navigation }) {
       <ScreenHeader title="Signage Library" subtitle={`${templates.length} templates`} onBack={() => navigation.goBack()} />
 
       <View style={styles.filterRow}>
-        {CATEGORIES.map((c) => (
+        {categories.map((c) => (
           <TouchableOpacity
             key={c}
             style={[styles.filterTab, activeCategory === c && styles.filterTabActive]}
