@@ -390,8 +390,8 @@ exports.dashboard = async (req, res) => {
       // Campaigns: active count, upcoming (draft), confirmed %
       query(`
         SELECT
-          COUNT(CASE WHEN status='active' THEN 1 END)::int                          AS active_campaigns,
-          COUNT(CASE WHEN status='draft' THEN 1 END)::int                           AS upcoming_campaigns,
+          COUNT(CASE WHEN c.status='active' THEN 1 END)::int                        AS active_campaigns,
+          COUNT(CASE WHEN c.status='draft'  THEN 1 END)::int                        AS upcoming_campaigns,
           COUNT(DISTINCT csa.store_id)::int                                         AS total_assigned_stores,
           COUNT(DISTINCT cc.store_id)::int                                          AS confirmed_stores
         FROM campaigns c
@@ -402,9 +402,9 @@ exports.dashboard = async (req, res) => {
       // VM tasks: pending, overdue, avg score
       query(`
         SELECT
-          COUNT(CASE WHEN status='pending' THEN 1 END)::int                         AS pending_tasks,
-          COUNT(CASE WHEN status='pending' AND due_date < NOW() THEN 1 END)::int    AS overdue_tasks,
-          COALESCE(ROUND(AVG(score))::int, 0)                                       AS avg_score
+          COUNT(CASE WHEN vt.status='pending' THEN 1 END)::int                      AS pending_tasks,
+          COUNT(CASE WHEN vt.status='pending' AND vt.due_date < NOW() THEN 1 END)::int AS overdue_tasks,
+          COALESCE(ROUND(AVG(vt.score))::int, 0)                                   AS avg_score
         FROM vm_tasks vt
         JOIN stores s ON s.id = vt.store_id
         WHERE s.brand_id=$1`, [bid]),
@@ -412,16 +412,16 @@ exports.dashboard = async (req, res) => {
       // Signage: template count, open print requests
       query(`
         SELECT
-          (SELECT COUNT(*)::int FROM signage_templates WHERE brand_id=$1 AND is_active=true) AS template_count,
-          COUNT(CASE WHEN pr.status IN ('pending','approved','in_production') THEN 1 END)::int AS open_print_requests
+          (SELECT COUNT(*)::int FROM signage_templates st2 WHERE st2.brand_id=$1 AND st2.is_active=true) AS template_count,
+          COUNT(CASE WHEN pr.status IN ('pending','approved','in_production') THEN 1 END)::int            AS open_print_requests
         FROM print_requests pr
         WHERE pr.brand_id=$1`, [bid]),
 
       // Environment: open issues, avg health score
       query(`
         SELECT
-          COUNT(CASE WHEN status='open' THEN 1 END)::int                            AS open_issues,
-          COALESCE(ROUND(AVG(score))::int, 0)                                       AS avg_health_score
+          COUNT(CASE WHEN ei.status='open' THEN 1 END)::int                         AS open_issues,
+          COALESCE(ROUND(AVG(ei.score))::int, 0)                                    AS avg_health_score
         FROM environment_issues ei
         WHERE ei.brand_id=$1`, [bid]),
     ]);
