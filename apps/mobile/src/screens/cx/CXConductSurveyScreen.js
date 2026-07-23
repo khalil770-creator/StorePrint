@@ -105,8 +105,19 @@ export default function CXConductSurveyScreen({ navigation, route }) {
   const setAnswer = (idx, val) => setAnswers(prev => ({ ...prev, [idx]: val }));
 
   // Derive NPS / CSAT scores from answers
-  const npsIdx   = questions.findIndex(q => q.type === 'rating_10' || (q.type === 'rating' && q.scale === 10));
-  const csatIdx  = questions.findIndex(q => q.type === 'rating_5'  || (q.type === 'rating' && q.scale === 5));
+  // First try explicit type/scale detection; fall back to survey type for the first rating question
+  const firstRatingIdx = questions.findIndex(q => q.type === 'rating' || q.type === 'rating_10' || q.type === 'rating_5');
+  let npsIdx  = questions.findIndex(q => q.type === 'rating_10' || (q.type === 'rating' && Number(q.scale) === 10) || q._nps);
+  let csatIdx = questions.findIndex(q => q.type === 'rating_5'  || (q.type === 'rating' && Number(q.scale) === 5));
+  // Fallback: use survey type to assign the first rating question
+  if (npsIdx < 0 && csatIdx < 0 && firstRatingIdx >= 0) {
+    if (survey?.type === 'nps')  npsIdx  = firstRatingIdx;
+    if (survey?.type === 'csat') csatIdx = firstRatingIdx;
+  } else if (npsIdx < 0 && firstRatingIdx >= 0 && survey?.type === 'nps') {
+    npsIdx = firstRatingIdx;
+  } else if (csatIdx < 0 && firstRatingIdx >= 0 && survey?.type === 'csat') {
+    csatIdx = firstRatingIdx;
+  }
   const npsScore  = npsIdx  >= 0 ? answers[npsIdx]  : undefined;
   const csatScore = csatIdx >= 0 ? answers[csatIdx] : undefined;
 

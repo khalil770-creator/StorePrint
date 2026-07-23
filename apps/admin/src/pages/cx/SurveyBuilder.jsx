@@ -16,6 +16,7 @@ const QUESTION_TYPES = ['rating', 'text', 'multiple_choice']
 const NPS_DEFAULT_QUESTION = {
   text: 'How likely are you to recommend us to a friend or colleague? (0–10)',
   type: 'rating',
+  scale: 10,
   required: true,
   _nps: true,
 }
@@ -94,7 +95,10 @@ export default function SurveyBuilder() {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!name.trim()) { window.alert('Survey name is required.'); return }
-    const cleanQuestions = questions.map(({ _nps, ...q }) => q)
+    const cleanQuestions = questions.map(({ _nps, ...q }) => ({
+      ...q,
+      scale: _nps ? 10 : (q.scale || 5),
+    }))
     mutation.mutate({ title: name.trim(), description, type, is_active: isActive, questions: cleanQuestions })
   }
 
