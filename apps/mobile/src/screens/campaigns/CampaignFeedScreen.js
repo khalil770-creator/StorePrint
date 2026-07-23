@@ -79,7 +79,7 @@ export default function CampaignFeedScreen({ navigation }) {
         ListEmptyComponent={<EmptyState icon="📣" message="No campaigns found" />}
         renderItem={({ item }) => {
           const confirmedCount = item.confirmed_count ?? item.storesConfirmed ?? 0;
-          const totalStores = item.total_stores ?? item.storesTotal ?? 0;
+          const totalStores = item.store_count ?? item.total_stores ?? item.storesTotal ?? 0;
           const pc = pct(confirmedCount, totalStores);
           const barColor = item.color || colors.primary;
           return (
