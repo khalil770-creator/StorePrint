@@ -71,6 +71,10 @@ export default function VMPage() {
   const [editingTemplate, setEditingTemplate] = useState(null)
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [deletingTemplateId, setDeletingTemplateId] = useState(null)
+  const [taskStorePickerOpen, setTaskStorePickerOpen] = useState(false)
+  const [selectedTaskStoreIds, setSelectedTaskStoreIds] = useState([])
+  const [taskCreating, setTaskCreating] = useState(false)
+  const [taskCreateError, setTaskCreateError] = useState('')
   const qc = useQueryClient()
 
   const emptyTForm = { title: '', description: '', zone_name: '', planogram_url: '', instructions: '' }
@@ -124,7 +128,7 @@ export default function VMPage() {
   }
 
   // ── Tasks ──
-  const [taskForm, setTaskForm] = useState({ title: '', store_id: '', template_id: '', assigned_to: '', due_date: '', priority: 'medium' })
+  const [taskForm, setTaskForm] = useState({ title: '', template_id: '', assigned_to: '', due_date: '', priority: 'medium' })
   const [taskErrors, setTaskErrors] = useState({})
 
   const { data: rawTasks, isLoading: loadingTasks, error: errTasks } = useQuery({
@@ -148,18 +152,29 @@ export default function VMPage() {
   })
   const users = Array.isArray(getData(rawUsers)) ? getData(rawUsers) : []
 
-  const createTask = useMutation({
-    mutationFn: (payload) => client.post('/vm/tasks', payload),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['vm-tasks'] }); setShowTaskModal(false); setTaskForm({ title: '', store_id: '', template_id: '', assigned_to: '', due_date: '', priority: 'medium' }) },
-  })
-
-  function submitTask(e) {
+  async function submitTask(e) {
     e.preventDefault()
     const errs = {}
     if (!taskForm.title.trim()) errs.title = 'Required'
     if (Object.keys(errs).length) { setTaskErrors(errs); return }
     setTaskErrors({})
-    createTask.mutate(taskForm)
+    setTaskCreateError('')
+    setTaskCreating(true)
+    try {
+      const storeIds = selectedTaskStoreIds.length > 0 ? selectedTaskStoreIds : [null]
+      for (const store_id of storeIds) {
+        await client.post('/vm/tasks', { ...taskForm, store_id: store_id || undefined })
+      }
+      qc.invalidateQueries({ queryKey: ['vm-tasks'] })
+      setShowTaskModal(false)
+      setTaskForm(emptyTaskForm)
+      setSelectedTaskStoreIds([])
+      setTaskStorePickerOpen(false)
+    } catch {
+      setTaskCreateError('Failed to create task(s). Please try again.')
+    } finally {
+      setTaskCreating(false)
+    }
   }
 
   const s = {
@@ -336,24 +351,67 @@ export default function VMPage() {
 
       {/* ── New Task Modal ── */}
       {showTaskModal && (
-        <div style={OVERLAY} onClick={() => setShowTaskModal(false)}>
+        <div style={OVERLAY} onClick={() => { setShowTaskModal(false); setSelectedTaskStoreIds([]); setTaskStorePickerOpen(false) }}>
           <div style={MODAL} onClick={(e) => e.stopPropagation()}>
             <div style={s.modalTitle}>New VM Task</div>
-            {createTask.isError && (
+            {taskCreateError && (
               <div style={{ background: colors.errorBg, color: colors.error, borderRadius: 8, padding: '9px 14px', fontSize: 12, marginBottom: 16 }}>
-                Failed to create task.
+                {taskCreateError}
               </div>
             )}
             <form onSubmit={submitTask}>
               <FormField label="Title *" error={taskErrors.title}>
                 <input style={{ ...INPUT, ...(taskErrors.title ? { borderColor: colors.error } : {}) }} value={taskForm.title} onChange={(e) => setTaskForm((f) => ({ ...f, title: e.target.value }))} placeholder="Task title" />
               </FormField>
-              <FormField label="Store">
-                <select style={SELECT} value={taskForm.store_id} onChange={(e) => setTaskForm((f) => ({ ...f, store_id: e.target.value }))}>
-                  <option value="">— Select Store —</option>
-                  {stores.map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}
-                </select>
+
+              {/* Multi-store picker */}
+              <FormField label="Stores">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, color: colors.midGrey }}>
+                    {selectedTaskStoreIds.length === 0 ? 'None (all stores)' : selectedTaskStoreIds.length === stores.length ? 'All stores' : `${selectedTaskStoreIds.length} selected`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  style={{ ...INPUT, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  onClick={() => setTaskStorePickerOpen((v) => !v)}
+                >
+                  <span style={{ color: selectedTaskStoreIds.length === 0 ? colors.lightGrey : colors.dark }}>
+                    {selectedTaskStoreIds.length === 0 ? 'Select stores…' : selectedTaskStoreIds.length === stores.length ? '🏬 All stores' : `🏬 ${selectedTaskStoreIds.length} store${selectedTaskStoreIds.length > 1 ? 's' : ''} selected`}
+                  </span>
+                  <span style={{ fontSize: 10, color: colors.midGrey }}>{taskStorePickerOpen ? '▲' : '▼'}</span>
+                </button>
+                {taskStorePickerOpen && (
+                  <div style={{ border: `1.5px solid ${colors.border}`, borderRadius: 8, marginTop: 4, maxHeight: 200, overflowY: 'auto', background: colors.white }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 13px', borderBottom: `2px solid ${colors.border}`, cursor: 'pointer', background: selectedTaskStoreIds.length === stores.length ? colors.primaryBg : 'transparent' }}>
+                      <input type="checkbox"
+                        checked={stores.length > 0 && selectedTaskStoreIds.length === stores.length}
+                        onChange={() => {
+                          const allIds = stores.map((s) => s.id)
+                          setSelectedTaskStoreIds(selectedTaskStoreIds.length === stores.length ? [] : allIds)
+                        }}
+                        style={{ accentColor: colors.primary, width: 15, height: 15 }}
+                      />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: colors.dark }}>All Stores</span>
+                      <span style={{ fontSize: 11, color: colors.midGrey, marginLeft: 'auto' }}>{stores.length} stores</span>
+                    </label>
+                    {stores.map((st) => {
+                      const checked = selectedTaskStoreIds.includes(st.id)
+                      return (
+                        <label key={st.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 13px', borderBottom: `1px solid ${colors.border}`, cursor: 'pointer', background: checked ? colors.primaryBg : 'transparent' }}>
+                          <input type="checkbox" checked={checked}
+                            onChange={() => setSelectedTaskStoreIds((prev) => prev.includes(st.id) ? prev.filter((x) => x !== st.id) : [...prev, st.id])}
+                            style={{ accentColor: colors.primary, width: 15, height: 15 }}
+                          />
+                          <span style={{ fontSize: 13, fontWeight: checked ? 700 : 400, color: checked ? colors.primary : colors.dark }}>{st.name}</span>
+                          {st.city && <span style={{ fontSize: 11, color: colors.lightGrey, marginLeft: 'auto' }}>{st.city}</span>}
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
               </FormField>
+
               <FormField label="Template">
                 <select style={SELECT} value={taskForm.template_id} onChange={(e) => setTaskForm((f) => ({ ...f, template_id: e.target.value }))}>
                   <option value="">— Select Template —</option>
@@ -377,10 +435,10 @@ export default function VMPage() {
                 </select>
               </FormField>
               <div style={s.modalActions}>
-                <button type="submit" style={s.submitBtn} disabled={createTask.isPending}>
-                  {createTask.isPending ? 'Creating…' : 'Create Task'}
+                <button type="submit" style={s.submitBtn} disabled={taskCreating}>
+                  {taskCreating ? 'Creating…' : `Create Task${selectedTaskStoreIds.length > 1 ? ` (${selectedTaskStoreIds.length} stores)` : ''}`}
                 </button>
-                <button type="button" style={s.cancelBtn} onClick={() => setShowTaskModal(false)}>Cancel</button>
+                <button type="button" style={s.cancelBtn} onClick={() => { setShowTaskModal(false); setSelectedTaskStoreIds([]); setTaskStorePickerOpen(false) }}>Cancel</button>
               </div>
             </form>
           </div>

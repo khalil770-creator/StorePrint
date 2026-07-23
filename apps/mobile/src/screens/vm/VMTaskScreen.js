@@ -10,10 +10,12 @@ import ScreenHeader from '../../components/common/ScreenHeader';
 import StatusChip from '../../components/common/StatusChip';
 import { colors, typography, radius, shadow } from '../../constants/theme';
 import { getCurrentGPS } from '../../utils/gps';
+import { useAuthStore } from '../../store/authStore';
 import client from '../../api/client';
 
 export default function VMTaskScreen({ route, navigation }) {
   const task = route.params?.task || {};
+  const { user } = useAuthStore();
   const [gps, setGps] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [photos, setPhotos] = useState([]);
@@ -36,6 +38,7 @@ export default function VMTaskScreen({ route, navigation }) {
   });
 
   const canSubmit = gps !== null;
+  const isLocked = task.assigned_to && task.assigned_to !== user?.id;
 
   async function handleGetGPS() {
     setGpsLoading(true);
@@ -218,14 +221,20 @@ export default function VMTaskScreen({ route, navigation }) {
       </ScrollView>
 
       <View style={styles.ctaBar}>
-        <TouchableOpacity
-          style={[styles.ctaBtn, !canSubmit && styles.ctaBtnDisabled]}
-          onPress={handleSubmit}
-          disabled={!canSubmit || submit.isPending}
-          activeOpacity={0.85}
-        >
-          {submit.isPending ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaBtnText}>Submit VM Task</Text>}
-        </TouchableOpacity>
+        {isLocked ? (
+          <View style={styles.lockedBanner}>
+            <Text style={styles.lockedText}>🔒 Assigned to {task.assigned_to_name || 'another user'}. Only they can submit.</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.ctaBtn, !canSubmit && styles.ctaBtnDisabled]}
+            onPress={handleSubmit}
+            disabled={!canSubmit || submit.isPending}
+            activeOpacity={0.85}
+          >
+            {submit.isPending ? <ActivityIndicator color={colors.white} /> : <Text style={styles.ctaBtnText}>Submit VM Task</Text>}
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -289,4 +298,6 @@ const styles = StyleSheet.create({
   ctaBtn:             { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', ...shadow.green },
   ctaBtnDisabled:     { backgroundColor: colors.border },
   ctaBtnText:         { color: colors.white, fontSize: typography.md, fontWeight: '700' },
+  lockedBanner:       { backgroundColor: '#FEF3C7', borderRadius: radius.md, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center' },
+  lockedText:         { color: '#92400E', fontSize: typography.sm, fontWeight: '600', textAlign: 'center' },
 });
