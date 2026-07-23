@@ -119,11 +119,9 @@ export default function CampaignsList() {
         title="Campaigns"
         onBack={false}
         actions={
-          tab === 'campaigns' && (
-            <button style={s.createBtn} onClick={() => navigate('/admin/campaigns/new')}>
-              + New Campaign
-            </button>
-          )
+          <button style={s.createBtn} onClick={() => navigate('/admin/campaigns/new')}>
+            + New Campaign
+          </button>
         }
       />
 
