@@ -116,7 +116,7 @@ export default function FieldAttendancePage() {
                 </thead>
                 <tbody>
                   {liveData.map((r, i) => {
-                    const clockIn = r.clock_in ? new Date(r.clock_in) : null
+                    const clockIn = r.clock_in_at ? new Date(r.clock_in_at) : null
                     const duration = clockIn ? Math.round((Date.now() - clockIn.getTime()) / 60000) : null
                     return (
                       <tr key={r.id || i}>
@@ -170,8 +170,8 @@ export default function FieldAttendancePage() {
                 </thead>
                 <tbody>
                   {attendance.map((r, i) => {
-                    const inn = r.clock_in ? new Date(r.clock_in) : null
-                    const out = r.clock_out ? new Date(r.clock_out) : null
+                    const inn = r.clock_in_at ? new Date(r.clock_in_at) : null
+                    const out = r.clock_out_at ? new Date(r.clock_out_at) : null
                     const mins = inn && out ? Math.round((out - inn) / 60000) : null
                     return (
                       <tr key={r.id || i}>
