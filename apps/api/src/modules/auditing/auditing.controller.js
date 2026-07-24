@@ -250,12 +250,25 @@ exports.getAudit = async (req, res) => {
     }
 
     const { rows: responses } = await query(
-      `SELECT ar.*, atq.text as question_text, atq.type as question_type
+      `SELECT ar.*, atq.text as question_text, atq.type as question_type, atq.is_critical
        FROM audit_responses ar
        JOIN audit_template_questions atq ON atq.id = ar.question_id
        WHERE ar.audit_id=$1`,
       [req.params.id]
     );
+
+    // Annotate each category with its score and per-question responses
+    for (const cat of cats) {
+      const catQs = cat.questions || [];
+      const catResps = responses.filter(r => catQs.find(q => Number(q.id) === Number(r.question_id)));
+      const pass = catResps.filter(r => r.response === 'yes' || parseFloat(r.response) >= 3).length;
+      cat.score = catQs.length ? Math.round((pass / catQs.length) * 100) : null;
+      cat.questions = catQs.map(q => ({
+        ...q,
+        response: responses.find(r => Number(r.question_id) === Number(q.id)) || null,
+      }));
+    }
+
     res.json({ ...audit[0], categories: cats, responses });
   } catch (err) { res.status(500).json({ error: 'Failed to get audit' }); }
 };
@@ -313,18 +326,19 @@ exports.submitAudit = async (req, res) => {
     const flaggedItems = [];
 
     for (const cat of cats) {
-      const catQs = questions.filter(q => q.category_id === cat.id);
-      const catResps = responses.filter(r => catQs.find(q => q.id === r.question_id));
+      const catQs = questions.filter(q => Number(q.category_id) === Number(cat.id));
+      const catResps = responses.filter(r => catQs.find(q => Number(q.id) === Number(r.question_id)));
       const pass = catResps.filter(r => r.response === 'yes' || parseFloat(r.response) >= 3).length;
       const catScore = catQs.length ? (pass / catQs.length) * 100 : 100;
-      totalWeight += parseFloat(cat.weight);
-      weightedScore += catScore * parseFloat(cat.weight);
+      totalWeight += parseFloat(cat.weight || 1);
+      weightedScore += catScore * parseFloat(cat.weight || 1);
 
       catQs.forEach(q => {
-        const resp = responses.find(r => r.question_id === q.id);
-        if (q.is_critical && (!resp || resp.response === 'no')) {
-          criticalFail = true;
-          flaggedItems.push({ question_id: q.id, text: q.text });
+        const resp = responses.find(r => Number(r.question_id) === Number(q.id));
+        const isFail = !resp || resp.response === 'no' || (resp.response !== 'yes' && parseFloat(resp.response) < 3);
+        if (isFail) {
+          if (q.is_critical) criticalFail = true;
+          flaggedItems.push({ question_id: q.id, text: q.text, is_critical: q.is_critical });
         }
       });
     }

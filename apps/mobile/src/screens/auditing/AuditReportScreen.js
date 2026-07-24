@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import ScreenHeader from '../../components/common/ScreenHeader';
@@ -17,7 +17,27 @@ function ScoreRing({ score }) {
   );
 }
 
+function QuestionRow({ q }) {
+  const resp = q.response;
+  const answer = resp?.response ?? '—';
+  const isFail = !resp || answer === 'no' || (answer !== 'yes' && parseFloat(answer) < 3);
+  const answerColor = isFail ? colors.error : colors.success;
+  return (
+    <View style={styles.qRow}>
+      <View style={styles.qHeader}>
+        <Text style={styles.qText}>{q.text}</Text>
+        <Text style={[styles.qAnswer, { color: answerColor }]}>{answer.toUpperCase()}</Text>
+      </View>
+      {resp?.notes ? <Text style={styles.qNotes}>{resp.notes}</Text> : null}
+      {resp?.photo_url ? (
+        <Image source={{ uri: resp.photo_url }} style={styles.qPhoto} resizeMode="cover" />
+      ) : null}
+    </View>
+  );
+}
+
 export default function AuditReportScreen({ route, navigation }) {
+  const [expandedCat, setExpandedCat] = useState(null);
   const auditParam = route.params?.audit;
   const auditId    = auditParam?.id;
 
@@ -62,15 +82,23 @@ export default function AuditReportScreen({ route, navigation }) {
               {categories.map(cat => {
                 const pct      = cat.score ?? 0;
                 const barColor = pct >= 80 ? colors.primary : pct >= 60 ? colors.warning : colors.error;
+                const key      = String(cat.id || cat.name);
+                const expanded = expandedCat === key;
                 return (
-                  <View key={cat.name || cat.title} style={styles.catRow}>
-                    <View style={styles.catHeader}>
+                  <View key={key} style={styles.catRow}>
+                    <TouchableOpacity style={styles.catHeader} onPress={() => setExpandedCat(expanded ? null : key)} activeOpacity={0.7}>
                       <Text style={styles.catName}>{cat.name || cat.title}</Text>
-                      <Text style={[styles.catScore, { color: barColor }]}>{pct}%</Text>
-                    </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={[styles.catScore, { color: barColor }]}>{pct}%</Text>
+                        <Text style={{ color: colors.midGrey, fontSize: 14 }}>{expanded ? '▲' : '▼'}</Text>
+                      </View>
+                    </TouchableOpacity>
                     <View style={styles.barBg}>
                       <View style={[styles.barFill, { width: pct + '%', backgroundColor: barColor }]} />
                     </View>
+                    {expanded && (cat.questions || []).map((q, qi) => (
+                      <QuestionRow key={q.id || qi} q={q} />
+                    ))}
                   </View>
                 );
               })}
@@ -116,4 +144,10 @@ const styles = StyleSheet.create({
   caBtn:        { marginTop: 8, borderWidth: 1.5, borderColor: colors.warning, borderRadius: radius.md,
                   padding: 15, alignItems: 'center' },
   caBtnText:    { color: colors.warning, fontWeight: '700', fontSize: typography.sm },
+  qRow:         { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10, marginTop: 10 },
+  qHeader:      { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  qText:        { flex: 1, fontSize: typography.xs, color: colors.dark, fontWeight: '500' },
+  qAnswer:      { fontSize: typography.xs, fontWeight: '800', textTransform: 'uppercase' },
+  qNotes:       { fontSize: typography.xs, color: colors.midGrey, marginTop: 4, fontStyle: 'italic' },
+  qPhoto:       { width: '100%', height: 140, borderRadius: radius.sm, marginTop: 8 },
 });
