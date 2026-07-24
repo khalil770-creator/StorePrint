@@ -263,12 +263,13 @@ exports.getAudit = async (req, res) => {
     // Annotate each category with its score and per-question responses
     for (const cat of cats) {
       const catQs = cat.questions || [];
-      const catResps = responses.filter(r => catQs.find(q => Number(q.id) === Number(r.question_id)));
+      const catQIds = new Set(catQs.map(q => String(q.id)));
+      const catResps = responses.filter(r => catQIds.has(String(r.question_id)));
       const pass = catResps.filter(r => r.response === 'yes' || parseFloat(r.response) >= 3).length;
       cat.score = catQs.length ? Math.round((pass / catQs.length) * 100) : null;
       cat.questions = catQs.map(q => ({
         ...q,
-        response: responses.find(r => Number(r.question_id) === Number(q.id)) || null,
+        response: responses.find(r => String(r.question_id) === String(q.id)) || null,
       }));
     }
 
@@ -329,15 +330,16 @@ exports.submitAudit = async (req, res) => {
     const flaggedItems = [];
 
     for (const cat of cats) {
-      const catQs = questions.filter(q => Number(q.category_id) === Number(cat.id));
-      const catResps = responses.filter(r => catQs.find(q => Number(q.id) === Number(r.question_id)));
+      const catQs = questions.filter(q => String(q.category_id) === String(cat.id));
+      const catQIds = new Set(catQs.map(q => String(q.id)));
+      const catResps = responses.filter(r => catQIds.has(String(r.question_id)));
       const pass = catResps.filter(r => r.response === 'yes' || parseFloat(r.response) >= 3).length;
       const catScore = catQs.length ? (pass / catQs.length) * 100 : 0;
       totalWeight += parseFloat(cat.weight || 1);
       weightedScore += catScore * parseFloat(cat.weight || 1);
 
       catQs.forEach(q => {
-        const resp = responses.find(r => Number(r.question_id) === Number(q.id));
+        const resp = responses.find(r => String(r.question_id) === String(q.id));
         const isFail = !resp || resp.response === 'no' || (resp.response !== 'yes' && parseFloat(resp.response) < 3);
         if (isFail) {
           if (q.is_critical) criticalFail = true;

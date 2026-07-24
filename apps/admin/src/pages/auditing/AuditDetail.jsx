@@ -135,8 +135,8 @@ export default function AuditDetail() {
 
         {categories.length > 0 ? (
           categories.map((cat) => {
-            const catQIds = new Set((cat.questions || []).map(q => Number(q.id)))
-            const catResponses = allResponses.filter((r) => catQIds.has(Number(r.question_id)))
+            const catQIds = new Set((cat.questions || []).map(q => String(q.id)))
+            const catResponses = allResponses.filter((r) => catQIds.has(String(r.question_id)))
             return (
               <div key={cat.id} style={{ marginBottom: 24 }}>
                 <div style={s.catHeader}>{cat.name}</div>
@@ -152,7 +152,7 @@ export default function AuditDetail() {
                   </thead>
                   <tbody>
                     {cat.questions?.map((q) => {
-                      const resp = catResponses.find((r) => Number(r.question_id) === Number(q.id))
+                      const resp = catResponses.find((r) => String(r.question_id) === String(q.id))
                       return (
                         <tr key={q.id}>
                           <td style={s.td}>{q.text}</td>
