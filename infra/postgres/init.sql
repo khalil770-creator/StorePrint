@@ -344,7 +344,8 @@ CREATE TABLE audit_responses (
   photo_lat    DECIMAL(10,8),
   photo_lng    DECIMAL(11,8),
   photo_ts     TIMESTAMPTZ,
-  created_at   TIMESTAMPTZ DEFAULT NOW()
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(audit_id, question_id)
 );
 
 CREATE TABLE corrective_actions (
