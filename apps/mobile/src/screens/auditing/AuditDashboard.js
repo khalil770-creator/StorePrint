@@ -51,12 +51,18 @@ export default function AuditDashboard({ navigation }) {
     queryKey: ['audits'],
     queryFn: () => client.get('/auditing').then(r => r.data),
   });
-  const audits = data?.data || [];
+  const audits = Array.isArray(data) ? data : (data?.data || []);
 
-  const pending   = audits.filter(a => a.status === 'open' || a.status === 'pending').length;
+  const pending   = audits.filter(a => a.status === 'open' || a.status === 'in_progress').length;
   const completed = audits.filter(a => a.status === 'submitted' || a.status === 'approved').length;
   const scores    = audits.filter(a => a.score != null).map(a => a.score);
   const avgScore  = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) + '%' : '--';
+
+  const tabAudits = tab === 0
+    ? audits.filter(a => a.status === 'open' || a.status === 'in_progress')
+    : tab === 1
+    ? audits.filter(a => a.status === 'scheduled')
+    : audits.filter(a => a.status === 'submitted' || a.status === 'approved');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -103,7 +109,7 @@ export default function AuditDashboard({ navigation }) {
         <Text style={styles.retryText} onPress={refetch}>Failed to load. Tap to retry.</Text>
       ) : (
         <FlatList
-          data={audits}
+          data={tabAudits}
           keyExtractor={i => String(i.id)}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
