@@ -265,8 +265,9 @@ exports.getAudit = async (req, res) => {
       const catQs = cat.questions || [];
       const catQIds = new Set(catQs.map(q => String(q.id)));
       const catResps = responses.filter(r => catQIds.has(String(r.question_id)));
-      const pass = catResps.filter(r => r.response === 'yes' || parseFloat(r.response) >= 3).length;
-      cat.score = catQs.length ? Math.round((pass / catQs.length) * 100) : null;
+      const applicable = catResps.filter(r => r.response !== 'na');
+      const pass = applicable.filter(r => r.response === 'yes' || r.response === 'photo_taken' || parseFloat(r.response) >= 3).length;
+      cat.score = applicable.length ? Math.round((pass / applicable.length) * 100) : null;
       cat.questions = catQs.map(q => ({
         ...q,
         response: responses.find(r => String(r.question_id) === String(q.id)) || null,
@@ -333,14 +334,17 @@ exports.submitAudit = async (req, res) => {
       const catQs = questions.filter(q => String(q.category_id) === String(cat.id));
       const catQIds = new Set(catQs.map(q => String(q.id)));
       const catResps = responses.filter(r => catQIds.has(String(r.question_id)));
-      const pass = catResps.filter(r => r.response === 'yes' || parseFloat(r.response) >= 3).length;
-      const catScore = catQs.length ? (pass / catQs.length) * 100 : 0;
+      const applicable = catResps.filter(r => r.response !== 'na');
+      const pass = applicable.filter(r => r.response === 'yes' || r.response === 'photo_taken' || parseFloat(r.response) >= 3).length;
+      const catScore = applicable.length ? (pass / applicable.length) * 100 : 0;
       totalWeight += parseFloat(cat.weight || 1);
       weightedScore += catScore * parseFloat(cat.weight || 1);
 
       catQs.forEach(q => {
         const resp = responses.find(r => String(r.question_id) === String(q.id));
-        const isFail = !resp || resp.response === 'no' || (resp.response !== 'yes' && parseFloat(resp.response) < 3);
+        const isNa = resp?.response === 'na';
+        const isPass = resp && (resp.response === 'yes' || resp.response === 'photo_taken' || parseFloat(resp.response) >= 3);
+        const isFail = !isNa && !isPass;
         if (isFail) {
           if (q.is_critical) criticalFail = true;
           flaggedItems.push({ question_id: q.id, text: q.text, is_critical: q.is_critical });
