@@ -26,7 +26,7 @@ function AnswerBadge({ type, value }) {
     const yes = value === 'yes' || value === true || value === 'true'
     return <Badge status={yes ? 'active' : 'error'} label={yes ? 'Yes' : 'No'} />
   }
-  if (type === 'score') {
+  if (type === 'score_1_5' || type === 'score') {
     const n = Number(value)
     const color = n >= 4 ? colors.success : n >= 3 ? colors.warning : colors.error
     return <span style={{ fontWeight: 700, color, fontFamily: fonts?.mono }}>{n}/5</span>
@@ -135,7 +135,8 @@ export default function AuditDetail() {
 
         {categories.length > 0 ? (
           categories.map((cat) => {
-            const catResponses = allResponses.filter((r) => r.category_id === cat.id)
+            const catQIds = new Set((cat.questions || []).map(q => Number(q.id)))
+            const catResponses = allResponses.filter((r) => catQIds.has(Number(r.question_id)))
             return (
               <div key={cat.id} style={{ marginBottom: 24 }}>
                 <div style={s.catHeader}>{cat.name}</div>
@@ -151,12 +152,12 @@ export default function AuditDetail() {
                   </thead>
                   <tbody>
                     {cat.questions?.map((q) => {
-                      const resp = catResponses.find((r) => r.question_id === q.id)
+                      const resp = catResponses.find((r) => Number(r.question_id) === Number(q.id))
                       return (
                         <tr key={q.id}>
                           <td style={s.td}>{q.text}</td>
                           <td style={{ ...s.td, color: colors.midGrey }}>{q.type}</td>
-                          <td style={s.td}><AnswerBadge type={q.type} value={resp?.answer} /></td>
+                          <td style={s.td}><AnswerBadge type={q.type} value={resp?.response} /></td>
                           <td style={s.td}>{q.is_critical ? <Badge status="error" label="Critical" /> : '—'}</td>
                           <td style={{ ...s.td, color: colors.midGrey, maxWidth: 200 }}>{resp?.notes || '—'}</td>
                         </tr>
@@ -186,7 +187,7 @@ export default function AuditDetail() {
                   <tr key={r.id}>
                     <td style={s.td}>{r.question_text || '—'}</td>
                     <td style={{ ...s.td, color: colors.midGrey }}>{r.question_type || '—'}</td>
-                    <td style={s.td}><AnswerBadge type={r.question_type} value={r.answer} /></td>
+                    <td style={s.td}><AnswerBadge type={r.question_type} value={r.response} /></td>
                     <td style={{ ...s.td, color: colors.midGrey }}>{r.notes || '—'}</td>
                   </tr>
                 ))}

@@ -229,8 +229,11 @@ exports.startAudit = async (req, res) => {
 exports.getAudit = async (req, res) => {
   try {
     const { rows: audit } = await query(
-      `SELECT a.* FROM audits a
+      `SELECT a.*, t.name as template_name, st.name as store_name, u.name as auditor_name
+       FROM audits a
        JOIN audit_templates t ON t.id = a.template_id
+       JOIN stores st ON st.id = a.store_id
+       JOIN users u ON u.id = a.auditor_id
        WHERE a.id=$1 AND t.brand_id=$2`,
       [req.params.id, req.user.brand_id]
     );
