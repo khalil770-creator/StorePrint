@@ -329,7 +329,7 @@ exports.submitAudit = async (req, res) => {
       const catQs = questions.filter(q => Number(q.category_id) === Number(cat.id));
       const catResps = responses.filter(r => catQs.find(q => Number(q.id) === Number(r.question_id)));
       const pass = catResps.filter(r => r.response === 'yes' || parseFloat(r.response) >= 3).length;
-      const catScore = catQs.length ? (pass / catQs.length) * 100 : 100;
+      const catScore = catQs.length ? (pass / catQs.length) * 100 : 0;
       totalWeight += parseFloat(cat.weight || 1);
       weightedScore += catScore * parseFloat(cat.weight || 1);
 

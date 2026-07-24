@@ -259,8 +259,12 @@ function AuditQuestions({ auditId, navigation }) {
   });
 
   const saveResponse = useMutation({
-    mutationFn: ({ questionId, value }) =>
-      client.post(`/auditing/${auditId}/responses`, { question_id: questionId, value }).then(r => r.data),
+    mutationFn: ({ questionId, value, photoUri }) =>
+      client.post(`/auditing/${auditId}/responses`, {
+        question_id: questionId,
+        response: String(value),
+        photo_url: photoUri || null,
+      }).then(r => r.data),
   });
 
   const questions = (audit?.categories || []).flatMap(c =>
@@ -286,7 +290,7 @@ function AuditQuestions({ auditId, navigation }) {
 
   const handleAnswer = (questionId, opt) => {
     setResponses(r => ({ ...r, [questionId]: opt }));
-    saveResponse.mutate({ questionId, value: String(opt.value) });
+    saveResponse.mutate({ questionId, value: opt.value, photoUri: opt.uri || null });
   };
 
   const submit = async () => {

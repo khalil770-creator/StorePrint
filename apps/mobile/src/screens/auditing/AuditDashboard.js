@@ -55,7 +55,7 @@ export default function AuditDashboard({ navigation }) {
 
   const pending   = audits.filter(a => a.status === 'open' || a.status === 'in_progress').length;
   const completed = audits.filter(a => a.status === 'submitted' || a.status === 'approved').length;
-  const scores    = audits.filter(a => a.score != null).map(a => a.score);
+  const scores    = audits.filter(a => a.score != null).map(a => parseFloat(a.score));
   const avgScore  = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) + '%' : '--';
 
   const tabAudits = tab === 0
