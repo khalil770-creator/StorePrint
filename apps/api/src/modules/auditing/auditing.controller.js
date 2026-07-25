@@ -1,4 +1,5 @@
 const { query } = require('../../config/db');
+const { uploadFile, getPresignedUrl } = require('../../config/minio');
 
 // ── Templates ──────────────────────────────────────────────────
 
@@ -276,6 +277,25 @@ exports.getAudit = async (req, res) => {
 
     res.json({ ...audit[0], categories: cats, responses });
   } catch (err) { res.status(500).json({ error: 'Failed to get audit' }); }
+};
+
+exports.uploadPhoto = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const { rows: auditCheck } = await query(
+      `SELECT a.id FROM audits a JOIN audit_templates t ON t.id = a.template_id WHERE a.id=$1 AND t.brand_id=$2`,
+      [req.params.id, req.user.brand_id]
+    );
+    if (!auditCheck.length) return res.status(404).json({ error: 'Audit not found' });
+
+    const ext = req.file.originalname.split('.').pop() || 'jpg';
+    const objectName = `audits/${req.params.id}/${Date.now()}.${ext}`;
+    const { Readable } = require('stream');
+    const stream = Readable.from(req.file.buffer);
+    await uploadFile(objectName, stream, req.file.size, req.file.mimetype);
+    const url = await getPresignedUrl(objectName, 60 * 60 * 24 * 365);
+    res.json({ url, object_name: objectName });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to upload photo' }); }
 };
 
 exports.saveResponse = async (req, res) => {

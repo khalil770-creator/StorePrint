@@ -1,7 +1,10 @@
 const router = require('express').Router();
+const multer = require('multer');
 const { authenticate, requirePermission } = require('../../middleware/auth');
 const { gpsVerify } = require('../../middleware/gpsVerify');
 const ctrl = require('./auditing.controller');
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 router.use(authenticate);
 
@@ -29,6 +32,7 @@ router.get('/reports/benchmarks',          requirePermission('auditing', 'read')
 router.get('/',                    requirePermission('auditing', 'read'),   ctrl.listAudits);
 router.post('/start',              requirePermission('auditing', 'create'), gpsVerify('store_id'), ctrl.startAudit);
 router.get('/:id',                 requirePermission('auditing', 'read'),   ctrl.getAudit);
+router.post('/:id/photos',         requirePermission('auditing', 'update'), upload.single('photo'), ctrl.uploadPhoto);
 router.post('/:id/responses',      requirePermission('auditing', 'update'), ctrl.saveResponse);
 router.post('/:id/submit',         requirePermission('auditing', 'update'), gpsVerify('store_id'), ctrl.submitAudit);
 

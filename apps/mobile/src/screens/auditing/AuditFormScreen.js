@@ -258,13 +258,30 @@ function AuditQuestions({ auditId, navigation }) {
     enabled: !!auditId,
   });
 
+  const uploadPhoto = async (auditId, uri) => {
+    const filename = uri.split('/').pop() || 'photo.jpg';
+    const ext = filename.split('.').pop() || 'jpg';
+    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+    const formData = new FormData();
+    formData.append('photo', { uri, name: filename, type: mimeType });
+    const { data } = await client.post(`/auditing/${auditId}/photos`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data.url;
+  };
+
   const saveResponse = useMutation({
-    mutationFn: ({ questionId, value, photoUri }) =>
-      client.post(`/auditing/${auditId}/responses`, {
+    mutationFn: async ({ questionId, value, photoUri }) => {
+      let photoUrl = null;
+      if (photoUri && value === 'photo_taken') {
+        photoUrl = await uploadPhoto(auditId, photoUri);
+      }
+      return client.post(`/auditing/${auditId}/responses`, {
         question_id: questionId,
         response: String(value),
-        photo_url: photoUri || null,
-      }).then(r => r.data),
+        photo_url: photoUrl,
+      }).then(r => r.data);
+    },
   });
 
   const questions = (audit?.categories || []).flatMap(c =>
