@@ -27,6 +27,7 @@ app.use(rateLimit({
 
 // ── Routes ─────────────────────────────────────────────────────
 app.use('/api/auth',           require('./modules/admin/system/auth.routes'));
+app.use('/api/brand',          require('./modules/admin/system/brand.routes'));
 app.use('/api/users',          require('./modules/admin/users/users.routes'));
 app.use('/api/roles',          require('./modules/admin/roles/roles.routes'));
 app.use('/api/stores',         require('./modules/admin/stores/stores.routes'));

@@ -6,12 +6,19 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import client from '../../api/client';
 
 export default function AppHeader({ subtitle, rightSlot }) {
   const { user, logout } = useAuthStore();
   const qc = useQueryClient();
+
+  const { data: brandRaw } = useQuery({
+    queryKey: ['brand'],
+    queryFn: () => client.get('/brand').then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+  const brand = brandRaw?.data ?? brandRaw;
 
   const initials = user?.name
     ? user.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
@@ -37,15 +44,14 @@ export default function AppHeader({ subtitle, rightSlot }) {
     <View style={styles.container}>
       <View style={styles.row}>
 
-        {/* Left: Ideas logo + app name block */}
+        {/* Left: logo + app name */}
         <View style={styles.leftBlock}>
           <View style={styles.brandRow}>
-            <Image
-              source={require('../../../assets/logo.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <Text style={styles.appName}>StorePrint</Text>
+            {brand?.logo_url
+              ? <Image source={{ uri: brand.logo_url }} style={styles.logo} resizeMode="contain" />
+              : <Image source={require('../../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+            }
+            <Text style={styles.appName}>{brand?.app_name || 'StorePrint'}</Text>
           </View>
           {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
         </View>
